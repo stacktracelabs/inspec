@@ -5,7 +5,6 @@ namespace StackTrace\Inspec;
 
 
 use StackTrace\Inspec\Route as RouteAttribute;
-use App\Http\Middleware\AccountSelected;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -681,18 +680,6 @@ class Document
                     'bearerAuth' => []
                 ]
             ];
-
-            if ($middleware->contains('business') || $middleware->contains(AccountSelected::class)) {
-                $parameters[] = [
-                    'in' => 'header',
-                    'name' => 'X-Account',
-                    'schema' => [
-                        'type' => 'string',
-                    ],
-                    'required' => true,
-                    'description' => 'The UUID of the current account.',
-                ];
-            }
         }
 
         if ($description->cursorPaginatedResponse || $description->paginatedResponse) {
@@ -756,8 +743,8 @@ class Document
         }
 
         // Other responses
-        if (! empty($description->responses)) {
-            foreach ($description->responses as $code => $block) {
+        if (! empty($description->additionalResponses)) {
+            foreach ($description->additionalResponses as $code => $block) {
                 if ($code == 422 || $code == 429) {
                     Arr::set($path, "responses.{$code}", [
                         '$ref' => '#/components/responses/ErrorResponse',
