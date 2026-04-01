@@ -10,6 +10,8 @@ class ServiceProvider extends Provider
 {
     public function boot(): void
     {
-        //
+        $this->commands([
+            Commands\Generate::class,
+        ]);
     }
 }
