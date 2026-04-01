@@ -1,7 +1,3 @@
-{{-- Laravel Inspec Guidelines for AI Code Assistants --}}
-{{-- Source: https://github.com/stacktrace/inspec --}}
-{{-- License: MIT --}}
-
 ## Inspec
 
 - `stacktrace/inspec` generates an OpenAPI 3 document from PHP attributes on Laravel controller actions and Fractal transformers.

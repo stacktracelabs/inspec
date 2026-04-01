@@ -1,6 +1,6 @@
 ---
 name: annotate-inspec-api
-description: Add or update `stacktrace/inspec` documentation attributes in Laravel APIs by annotating controller actions with `#[StackTrace\\Inspec\\Route(...)]`, mapping request/query/response shapes into the Inspec property DSL, and keeping Fractal transformer `#[Schema]`, `#[ExpandItem]`, and `#[ExpandCollection]` metadata in sync. Use when Codex is asked to document endpoints, add OpenAPI annotations, migrate manual docs into Inspec attributes, or fix generated spec gaps in a Laravel project that uses Inspec.
+description: Add or update `stacktrace/inspec` documentation attributes in Laravel APIs by annotating controller actions with `#[StackTrace\\Inspec\\Route(...)]`, mapping request/query/response shapes into the Inspec property DSL, and keeping Fractal transformer `#[Schema]`, `#[ExpandItem]`, and `#[ExpandCollection]` metadata in sync. Use to document endpoints, add OpenAPI annotations, migrate manual docs into Inspec attributes, or fix generated spec gaps in a Laravel project that uses Inspec.
 ---
 
 # Annotate Inspec API
