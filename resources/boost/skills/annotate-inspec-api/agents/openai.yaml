@@ -1,0 +1,4 @@
+interface:
+  display_name: "Annotate Inspec API"
+  short_description: "Add Inspec API route annotations"
+  default_prompt: "Use $annotate-inspec-api to add or update Inspec annotations for this Laravel API."
