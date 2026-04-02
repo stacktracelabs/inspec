@@ -287,9 +287,47 @@ Use transformer class strings for paginated responses.
 ```php
 <?php
 
+namespace App\OpenApi;
+
+use StackTrace\Inspec\Api;
+use StackTrace\Inspec\CursorPaginator;
+use StackTrace\Inspec\Documentation;
+use StackTrace\Inspec\PagePaginator;
+
+class PublicApiDocumentation extends Documentation
+{
+    public function build(Api $api): void
+    {
+        $api
+            ->name('public')
+            ->prefix('api')
+            ->withPagination(
+                (new PagePaginator())
+                    ->withMeta([
+                        'filters' => [
+                            'status?:string' => 'Applied status filter',
+                        ],
+                    ])
+                    ->defaultPerPage(50)
+            )
+            ->withCursorPagination(
+                (new CursorPaginator())
+                    ->withMeta([
+                        'trace_id:string' => 'Cursor trace identifier',
+                    ])
+                    ->defaultPerPage(100)
+            );
+    }
+}
+```
+
+```php
+<?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
+use StackTrace\Inspec\PagePaginator;
 use StackTrace\Inspec\Route;
 
 class ListUsersController
@@ -298,13 +336,14 @@ class ListUsersController
         tags: 'Users',
         summary: 'List users',
         paginatedResponse: UserTransformer::class,
-        paginatedMeta: [
-            '@description' => 'Additional pagination metadata',
-            'filters' => [
-                'status?:string' => 'Applied status filter',
+        paginator: new PagePaginator(
+            meta: [
+                'filters' => [
+                    'status?:string' => 'Applied status filter',
+                ],
             ],
-        ],
-        defaultPerPage: 50,
+            defaultPerPage: 50,
+        ),
     )]
     public function __invoke()
     {
@@ -319,6 +358,7 @@ class ListUsersController
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
+use StackTrace\Inspec\CursorPaginator;
 use StackTrace\Inspec\Route;
 
 class CursorUsersController
@@ -327,7 +367,12 @@ class CursorUsersController
         tags: 'Users',
         summary: 'List users with cursor pagination',
         cursorPaginatedResponse: UserTransformer::class,
-        defaultPerPage: 100,
+        cursorPaginator: new CursorPaginator(
+            meta: [
+                'trace_id:string' => 'Cursor trace identifier',
+            ],
+            defaultPerPage: 100,
+        ),
     )]
     public function __invoke()
     {
@@ -338,10 +383,12 @@ class CursorUsersController
 
 Pagination behavior:
 
-- `paginatedResponse` adds `limit` and `page` query parameters.
-- `cursorPaginatedResponse` adds `limit` and `cursor` query parameters.
-- `defaultPerPage` only changes the text in the generated `limit` parameter description.
-- `paginatedMeta` is merged into the generated `meta` object next to the built-in pagination block.
+- `paginatedResponse` uses the active `PagePaginator` definition and adds its query parameters plus a paginated `meta` block.
+- `cursorPaginatedResponse` uses the active `CursorPaginator` definition and adds its query parameters plus a cursor `meta` block.
+- `Api::withPagination()` and `Api::withCursorPagination()` replace the API-wide defaults.
+- `paginator` and `cursorPaginator` replace the API defaults for a single route.
+- In PHP attributes, route-level paginator overrides must be passed as constructor arguments like `new PagePaginator(...)` or `new CursorPaginator(...)`.
+- The built-in defaults still use `limit` + `page` with `meta.pagination`, and `limit` + `cursor` with `meta.cursor`.
 
 ### Multipart and file uploads
 

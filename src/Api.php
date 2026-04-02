@@ -51,12 +51,18 @@ class Api
 
     protected string $prefix = '';
 
+    protected PagePaginator $pagination;
+
+    protected CursorPaginator $cursorPagination;
+
     public function __construct()
     {
         $this->title = config('app.name', 'Laravel');
         $this->servers = [
             'Local' => config('app.url', 'http://localhost'),
         ];
+        $this->pagination = new PagePaginator();
+        $this->cursorPagination = new CursorPaginator();
     }
 
     public function name(string $name): static
@@ -142,6 +148,20 @@ class Api
     public function prefix(string $prefix): static
     {
         $this->prefix = $this->normalizePrefix($prefix);
+
+        return $this;
+    }
+
+    public function withPagination(PagePaginator $pagination): static
+    {
+        $this->pagination = $pagination;
+
+        return $this;
+    }
+
+    public function withCursorPagination(CursorPaginator $pagination): static
+    {
+        $this->cursorPagination = $pagination;
 
         return $this;
     }
@@ -243,10 +263,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -271,10 +291,10 @@ class Api
                 response: $response,
                 paginatedResponse: $paginatedResponse,
                 cursorPaginatedResponse: $cursorPaginatedResponse,
-                paginatedMeta: $paginatedMeta,
+                paginator: $paginator,
                 responseCode: $responseCode,
                 additionalResponses: $additionalResponses,
-                defaultPerPage: $defaultPerPage,
+                cursorPaginator: $cursorPaginator,
                 deprecated: $deprecated,
                 multipart: $multipart,
             ),
@@ -294,10 +314,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -313,10 +333,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );
@@ -333,10 +353,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -352,10 +372,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );
@@ -372,10 +392,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -391,10 +411,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );
@@ -411,10 +431,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -430,10 +450,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );
@@ -450,10 +470,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -469,10 +489,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );
@@ -489,10 +509,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): static {
@@ -515,10 +535,10 @@ class Api
                 response: $response,
                 paginatedResponse: $paginatedResponse,
                 cursorPaginatedResponse: $cursorPaginatedResponse,
-                paginatedMeta: $paginatedMeta,
+                paginator: $paginator,
                 responseCode: $responseCode,
                 additionalResponses: $additionalResponses,
-                defaultPerPage: $defaultPerPage,
+                cursorPaginator: $cursorPaginator,
                 deprecated: $deprecated,
                 multipart: $multipart,
             ),
@@ -536,6 +556,8 @@ class Api
         $this->assertControllerPathsExist();
 
         $document = new OpenAPIDocument();
+        $document->withPagination($this->pagination);
+        $document->withCursorPagination($this->cursorPagination);
 
         if (! $this->sanctum) {
             $document->withoutSanctum();
@@ -898,10 +920,10 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?array $paginatedMeta = null,
+        ?PagePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?int $defaultPerPage = null,
+        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ): RouteAttribute {
@@ -915,10 +937,10 @@ class Api
             response: $response,
             paginatedResponse: $paginatedResponse,
             cursorPaginatedResponse: $cursorPaginatedResponse,
-            paginatedMeta: $paginatedMeta,
+            paginator: $paginator,
             responseCode: $responseCode,
             additionalResponses: $additionalResponses,
-            defaultPerPage: $defaultPerPage,
+            cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
         );

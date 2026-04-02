@@ -36,6 +36,16 @@ class OpenAPIDocument
 
     protected bool $usesSanctumSecurity = false;
 
+    protected PagePaginator $pagination;
+
+    protected CursorPaginator $cursorPagination;
+
+    public function __construct()
+    {
+        $this->pagination = new PagePaginator();
+        $this->cursorPagination = new CursorPaginator();
+    }
+
     public function securitySchema(string $name, string $type, string $scheme): static
     {
         Arr::set($this->securitySchemas, $name, [
@@ -81,6 +91,20 @@ class OpenAPIDocument
     {
         $this->sanctum = false;
         $this->usesSanctumSecurity = false;
+
+        return $this;
+    }
+
+    public function withPagination(PagePaginator $pagination): static
+    {
+        $this->pagination = $pagination;
+
+        return $this;
+    }
+
+    public function withCursorPagination(CursorPaginator $cursorPagination): static
+    {
+        $this->cursorPagination = $cursorPagination;
 
         return $this;
     }
@@ -483,7 +507,7 @@ class OpenAPIDocument
         return $response;
     }
 
-    protected function buildCursorPaginatedResponse(array|string $def, ?array $metaBlueprint = null): array
+    protected function resolvePaginatedItems(array|string $def): array
     {
         if (is_string($def)) {
             if (! class_exists($def)) {
@@ -500,26 +524,13 @@ class OpenAPIDocument
             throw GeneratorException::withMessage("Creating items from object definition is supported yet.");
         }
 
-        $this->schema('CursorPaginator', $this->buildObject([
-            'current?:string' => 'Currently applied cursor',
-            'prev?:string' => 'The previous cursor',
-            'next?:string' => 'The next cursor',
-            'count:integer' => 'Total number of results on current page',
-        ]));
+        return $items;
+    }
 
-        $properties = [
-            'cursor' => [
-                '$ref' => '#/components/schemas/CursorPaginator',
-            ],
-        ];
-
-        if ($metaBlueprint) {
-            $customMeta = Arr::get($this->buildObject($metaBlueprint), 'properties');
-
-            if ($customMeta) {
-                $properties = array_merge($properties, $customMeta);
-            }
-        }
+    protected function buildPaginatorResponse(array|string $def, PaginationDefinition $paginator): array
+    {
+        $items = $this->resolvePaginatedItems($def);
+        $properties = $this->paginatorMetaProperties($paginator);
 
         return [
             'description' => 'Successful response',
@@ -534,77 +545,46 @@ class OpenAPIDocument
                             ],
                             'meta' => [
                                 'type' => 'object',
-                                'properties' => $properties
+                                'properties' => $properties,
                             ],
-                        ]
-                    ]
-                ]
-            ]
+                        ],
+                    ],
+                ],
+            ],
         ];
     }
 
-    protected function buildPaginatedResponse(array|string $def, ?array $metaBlueprint = null): array
+    protected function registerPaginatorSchema(PaginationDefinition $paginator): string
     {
-        if (is_string($def)) {
-            if (! class_exists($def)) {
-                throw GeneratorException::withMessage("The class [$def] does not exist.");
-            }
+        $definition = $this->buildObject($paginator->object);
+        $registered = $this->schemas[$paginator->name] ?? null;
 
-            [$schema, $schemaDef] = $this->gatherObjectSchemaFromClass($def);
-            $this->schema($schema, $schemaDef);
-
-            $items = [
-                '$ref' => "#/components/schemas/{$schema}",
-            ];
-        } else {
-            throw GeneratorException::withMessage("Creating items from object definition is supported yet.");
+        if (is_array($registered) && $registered !== $definition) {
+            throw GeneratorException::withMessage("The pagination schema [{$paginator->name}] is already registered with a different definition.");
         }
 
-        $this->schema('Paginator', $this->buildObject([
-            'total:integer' => 'Total number of results',
-            'count:integer' => 'Number of results on current page',
-            'per_page:integer' => 'Number of results per single page',
-            'current_page:integer' => 'Current page number (starting with 1 as first page)',
-            'total_pages:integer' => 'Total number of pages',
-            'links' => [
-                'next?:string' => 'Link to the next page if available',
-            ]
-        ]));
+        $this->schema($paginator->name, $definition);
 
+        return "#/components/schemas/{$paginator->name}";
+    }
+
+    protected function paginatorMetaProperties(PaginationDefinition $paginator): array
+    {
         $properties = [
-            'pagination' => [
-                '$ref' => '#/components/schemas/Paginator',
-            ]
+            $paginator->metaKey => [
+                '$ref' => $this->registerPaginatorSchema($paginator),
+            ],
         ];
 
-        if ($metaBlueprint) {
-            $customMeta = Arr::get($this->buildObject($metaBlueprint), 'properties');
+        if ($paginator->meta !== []) {
+            $customMeta = Arr::get($this->buildObject($paginator->meta), 'properties');
 
-            if ($customMeta) {
+            if (is_array($customMeta) && $customMeta !== []) {
                 $properties = array_merge($properties, $customMeta);
             }
         }
 
-        return [
-            'description' => 'Successful response',
-            'content' => [
-                'application/json' => [
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'data' => [
-                                'type' => 'array',
-                                'items' => $items,
-                            ],
-                            'meta' => [
-                                'type' => 'object',
-                                'properties' => $properties
-                            ],
-                        ]
-                    ]
-                ]
-            ]
-        ];
+        return $properties;
     }
 
     protected function buildRequest(array $def, string $type = 'application/json'): array
@@ -632,6 +612,8 @@ class OpenAPIDocument
 
     protected function addRoute(Route $route, RouteAttribute $description, string $method, ?string $path = null): static
     {
+        $this->assertPaginatorOverridesAreValid($description);
+
         $url = $path ?: '/'.ltrim($route->uri(), '/');
 
         $path = ArrayBuilder::make()
@@ -645,42 +627,17 @@ class OpenAPIDocument
         // Parameters
         $parameters = [];
         if (! empty($description->route)) {
-            // TODO: Can check for undocumented parameters and issue a warning.
-            foreach ($description->route as $name => $parameterDescription) {
-                $prop = Property::compile($name);
-
-                $parameters[] = [
-                    'in' => 'path',
-                    'name' => $prop->name,
-                    'schema' => [
-                        'type' => $prop->type,
-                    ],
-                    'required' => ! $prop->optional,
-                    'description' => $parameterDescription,
-                ];
-            }
+            $parameters = [
+                ...$parameters,
+                ...$this->buildPathParameters($description->route),
+            ];
         }
 
         if (! empty($description->query)) {
-            foreach ($description->query as $name => $queryDescription) {
-                $prop = Property::compile($name);
-
-                $queryProp = [
-                    'in' => 'query',
-                    'name' => $prop->name,
-                    'schema' => [
-                        'type' => $prop->type,
-                    ],
-                    'description' => $queryDescription,
-                    'required' => $prop->nonNullable,
-                ];
-
-                if ($prop->isEnum()) {
-                    $queryProp['schema']['enum'] = $prop->enumCases();
-                }
-
-                $parameters[] = $queryProp;
-            }
+            $parameters = [
+                ...$parameters,
+                ...$this->buildQueryParameters($description->query),
+            ];
         }
 
         // Security
@@ -694,39 +651,17 @@ class OpenAPIDocument
             $this->usesSanctumSecurity = true;
         }
 
-        if ($description->cursorPaginatedResponse || $description->paginatedResponse) {
-            $parameters[] = [
-                'in' => 'query',
-                'name' => 'limit',
-                'schema' => [
-                    'type' => 'integer',
-                ],
-                'required' => false,
-                'description' => "Number of results to return. Defaults to ". (is_null($description->defaultPerPage) ? 15 : $description->defaultPerPage),
-            ];
-        }
-
         if ($description->cursorPaginatedResponse) {
-            $parameters[] = [
-                'in' => 'query',
-                'name' => 'cursor',
-                'schema' => [
-                    'type' => 'string',
-                ],
-                'required' => false,
-                'description' => 'The pagination cursor value',
+            $parameters = [
+                ...$parameters,
+                ...$this->buildQueryParameters(($description->cursorPaginator ?? $this->cursorPagination)->query),
             ];
         }
 
         if ($description->paginatedResponse) {
-            $parameters[] = [
-                'in' => 'query',
-                'name' => 'page',
-                'schema' => [
-                    'type' => 'integer',
-                ],
-                'required' => false,
-                'description' => 'The page number',
+            $parameters = [
+                ...$parameters,
+                ...$this->buildQueryParameters(($description->paginator ?? $this->pagination)->query),
             ];
         }
 
@@ -749,9 +684,9 @@ class OpenAPIDocument
         if (is_array($description->response) && !empty($description->response)) {
             Arr::set($path, "responses.{$description->responseCode}", $this->buildResponse($description->response));
         } else if ($description->paginatedResponse != null) {
-            Arr::set($path, "responses.{$description->responseCode}", $this->buildPaginatedResponse($description->paginatedResponse, $description->paginatedMeta));
+            Arr::set($path, "responses.{$description->responseCode}", $this->buildPaginatorResponse($description->paginatedResponse, $description->paginator ?? $this->pagination));
         } else if ($description->cursorPaginatedResponse != null) {
-            Arr::set($path, "responses.{$description->responseCode}", $this->buildCursorPaginatedResponse($description->cursorPaginatedResponse, $description->paginatedMeta));
+            Arr::set($path, "responses.{$description->responseCode}", $this->buildPaginatorResponse($description->cursorPaginatedResponse, $description->cursorPaginator ?? $this->cursorPagination));
         }
 
         // Other responses
@@ -786,6 +721,65 @@ class OpenAPIDocument
         $this->paths[] = $endpoint;
 
         return $this;
+    }
+
+    protected function buildPathParameters(array $definition): array
+    {
+        $parameters = [];
+
+        foreach ($definition as $name => $parameterDescription) {
+            $prop = Property::compile($name);
+
+            $parameters[] = [
+                'in' => 'path',
+                'name' => $prop->name,
+                'schema' => [
+                    'type' => $prop->type,
+                ],
+                'required' => ! $prop->optional,
+                'description' => $parameterDescription,
+            ];
+        }
+
+        return $parameters;
+    }
+
+    protected function buildQueryParameters(array $definition): array
+    {
+        $parameters = [];
+
+        foreach ($definition as $name => $queryDescription) {
+            $prop = Property::compile($name);
+
+            $queryProp = [
+                'in' => 'query',
+                'name' => $prop->name,
+                'schema' => [
+                    'type' => $prop->type,
+                ],
+                'description' => $queryDescription,
+                'required' => $prop->nonNullable,
+            ];
+
+            if ($prop->isEnum()) {
+                $queryProp['schema']['enum'] = $prop->enumCases();
+            }
+
+            $parameters[] = $queryProp;
+        }
+
+        return $parameters;
+    }
+
+    protected function assertPaginatorOverridesAreValid(RouteAttribute $description): void
+    {
+        if ($description->paginator && ! $description->paginatedResponse) {
+            throw GeneratorException::withMessage('The [paginator] override requires [paginatedResponse].');
+        }
+
+        if ($description->cursorPaginator && ! $description->cursorPaginatedResponse) {
+            throw GeneratorException::withMessage('The [cursorPaginator] override requires [cursorPaginatedResponse].');
+        }
     }
 
     /**

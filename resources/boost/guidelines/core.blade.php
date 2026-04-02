@@ -98,6 +98,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Keep annotations faithful to actual controller and transformer behavior. Do not invent fields that are not returned or accepted.
 - Use `responseCode: 201` for create endpoints and `additionalResponses` for extra status codes.
 - Use `paginatedResponse` or `cursorPaginatedResponse` with transformer class strings for paginated collections.
+- Customize pagination globally with `Api::withPagination()` / `Api::withCursorPagination()`, or per route with `paginator:` / `cursorPaginator:` overrides.
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when a spec should opt out.

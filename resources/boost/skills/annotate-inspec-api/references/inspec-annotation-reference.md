@@ -46,14 +46,14 @@ Available arguments:
   Paginated `data` collection. In practice, use a transformer class string.
 - `cursorPaginatedResponse: array|string|null`
   Cursor-paginated `data` collection. In practice, use a transformer class string.
-- `paginatedMeta: ?array`
-  Extra fields merged into the generated `meta` object for paginated responses.
+- `paginator: ?PagePaginator`
+  Replaces the API-level page paginator definition for this route.
 - `responseCode: int`
   Status code for the primary success response. Defaults to `200`.
 - `additionalResponses: array`
   Extra status codes. `422` and `429` become the shared `ErrorResponse`; other codes are description-only.
-- `defaultPerPage: ?int`
-  Only changes the text of the generated `limit` query parameter description.
+- `cursorPaginator: ?CursorPaginator`
+  Replaces the API-level cursor paginator definition for this route.
 - `deprecated: bool`
   Marks the operation as deprecated.
 - `multipart: bool`
@@ -89,7 +89,7 @@ format: binary
 ## Marker semantics by context
 The same DSL markers do different jobs depending on where you use them.
 
-### Request, response, and paginated-meta objects
+### Request, response, and paginator-meta objects
 - `field`
   Present in the payload conceptually; emitted as nullable unless the type is `boolean`.
 - `field!`
@@ -221,17 +221,20 @@ Use a transformer class as the value for a single object reference:
 ### Paginated responses
 
 ```php
+use StackTrace\Inspec\PagePaginator;
+
 #[Route(
     tags: 'Users',
     summary: 'List users',
     paginatedResponse: UserTransformer::class,
-    paginatedMeta: [
-        '@description' => 'Additional pagination metadata',
-        'filters' => [
-            'status?:string' => 'Applied status filter',
+    paginator: new PagePaginator(
+        meta: [
+            'filters' => [
+                'status?:string' => 'Applied status filter',
+            ],
         ],
-    ],
-    defaultPerPage: 50,
+        defaultPerPage: 50,
+    ),
 )]
 public function __invoke()
 {
@@ -241,9 +244,11 @@ public function __invoke()
 
 Generated pagination parameter behavior:
 
-- `paginatedResponse` adds `limit` and `page`.
-- `cursorPaginatedResponse` adds `limit` and `cursor`.
-- `defaultPerPage` only changes the `limit` description text.
+- `paginatedResponse` uses the active `PagePaginator` definition.
+- `cursorPaginatedResponse` uses the active `CursorPaginator` definition.
+- Use `Api::withPagination()` and `Api::withCursorPagination()` for API-wide defaults.
+- Use `paginator` and `cursorPaginator` when a single route needs different pagination metadata or query parameters.
+- In PHP attributes, paginator overrides must be passed as constructor arguments like `new PagePaginator(...)`.
 
 ### Multipart uploads
 

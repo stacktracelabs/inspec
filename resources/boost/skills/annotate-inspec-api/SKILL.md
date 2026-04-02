@@ -17,6 +17,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
    - `request` for request bodies
    - `response` for standard success bodies
    - `paginatedResponse` or `cursorPaginatedResponse` for transformer-backed collections
+   - `paginator` or `cursorPaginator` only when that route needs to override the API-level pagination definition
 4. If a response points to a Fractal transformer class, ensure its `transform()` method has `#[Schema(...)]`. If the transformer exposes includes, annotate `include*` methods with `#[ExpandItem]` or `#[ExpandCollection]`.
 5. Verify generation with `php artisan inspec:generate --stdout` when available. Prefer narrowing to the routes you touched with `--api`, `--path`, `--route`, and `--method` so you can inspect the generated YAML without rewriting files.
 
@@ -33,7 +34,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - Read `references/inspec-annotation-reference.md` before writing non-trivial request or response bodies.
 - Use `name[?][!]:type[,typeArg...][|modifier:arg[,arg...]]`.
 - Remember that `?` and `!` change meaning by context:
-  - In `request`, `response`, and `paginatedMeta` objects, `?` means optional and `!` means non-nullable.
+  - In `request`, `response`, and paginator `meta` objects, `?` means optional and `!` means non-nullable.
   - In `route` parameters, `?` controls requiredness. Path parameters are usually not optional.
   - In `query` parameters, `!` controls requiredness.
   - In transformer `#[Schema(...)]` objects, `?` makes the field nullable; Inspec does not currently emit a `required` array for schema objects.
@@ -54,6 +55,8 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
 - A request body automatically adds a `422` response unless one is already present.
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
+- API-wide pagination defaults live on `Api::withPagination()` and `Api::withCursorPagination()`.
+- Route-level paginator overrides are passed as `new PagePaginator(...)` or `new CursorPaginator(...)` constructor arguments inside the attribute.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.
 - Use `Api::prefix('api')` when Laravel routes live under `/api` but generated paths should omit that prefix.
 - When an API uses `prefix(...)`, match generated paths in `--path` filters, for example `^/users` instead of `^/api/users`.

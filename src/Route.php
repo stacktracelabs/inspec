@@ -22,10 +22,10 @@ readonly class Route
      * @param array|null $response Primary success response body.
      * @param array|string|null $paginatedResponse Paginated `data` collection backed by a transformer class.
      * @param array|string|null $cursorPaginatedResponse Cursor-paginated `data` collection backed by a transformer class.
-     * @param array|null $paginatedMeta Extra fields inside the pagination `meta` object.
+     * @param PagePaginator|null $paginator Page-based pagination definition override.
      * @param int $responseCode Status code for the primary success response.
      * @param array $additionalResponses Additional response codes. Codes `422` and `429` use `ErrorResponse`.
-     * @param int|null $defaultPerPage Default page size mentioned for limit field on paginated endpoints.
+     * @param CursorPaginator|null $cursorPaginator Cursor-based pagination definition override.
      * @param bool $deprecated Marks the endpoint as deprecated.
      * @param bool $multipart Forces `multipart/form-data` even without `file` fields.
      */
@@ -39,10 +39,10 @@ readonly class Route
         public ?array            $response = null,
         public array|string|null $paginatedResponse = null,
         public array|string|null $cursorPaginatedResponse = null,
-        public ?array            $paginatedMeta = null,
+        public ?PagePaginator    $paginator = null,
         public int               $responseCode = 200,
         public array             $additionalResponses = [],
-        public ?int              $defaultPerPage = null,
+        public ?CursorPaginator  $cursorPaginator = null,
         public bool              $deprecated = false,
         public bool              $multipart = false,
     ) {
