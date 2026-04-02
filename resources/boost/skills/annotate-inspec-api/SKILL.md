@@ -57,9 +57,10 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - A request body automatically adds a `422` validation response unless `additionalResponses[422]` or API-level error-response configuration overrides it.
 - Routes with `throttle` middleware automatically add a `429` response unless `additionalResponses[429]` or API-level error-response configuration overrides it.
 - API-wide inferred error defaults live on `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()`.
+- Standard non-paginated success payloads still come from `response: [...]`. Use `Api::withSuccessResponse()` when that payload should be wrapped or when the default success description, headers, or content type should change API-wide.
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
 - API-wide pagination defaults live on `Api::withPagination()` and `Api::withCursorPagination()`.
-- The paginator owns query params, paginator schema/meta, and the generated paginated success response. If the envelope needs to change, use a custom paginator subclass or paginator response-metadata helpers on the API-level paginator definition.
+- The paginator owns query params, paginator schema/meta, and the generated paginated success response. If the envelope needs to change, use a custom paginator subclass or reconfigure the API-level paginator definition.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.
 - Use `Api::prefix('api')` when Laravel routes live under `/api` but generated paths should omit that prefix.
 - When an API uses `prefix(...)`, match generated paths in `--path` filters, for example `^/users` instead of `^/api/users`.

@@ -15,6 +15,7 @@ use StackTrace\Inspec\Operations\Broadcasting\AuthenticateWebsocketUserOperation
 use StackTrace\Inspec\Operations\Broadcasting\AuthorizeWebsocketChannelOperation;
 use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\Responses\StandardSuccessResponse;
 use StackTrace\Inspec\Responses\TooManyRequestsResponse;
 use StackTrace\Inspec\Responses\ValidationErrorResponse;
 use StackTrace\Inspec\Route as RouteAttribute;
@@ -64,6 +65,8 @@ class Api
 
     protected CursorPaginator $cursorPagination;
 
+    protected SuccessResponse $successResponse;
+
     /**
      * @var array<int, Response|null>
      */
@@ -77,6 +80,7 @@ class Api
         ];
         $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
+        $this->successResponse = new StandardSuccessResponse();
         $this->errorResponses = [
             422 => new ValidationErrorResponse(),
             429 => new TooManyRequestsResponse(),
@@ -180,6 +184,13 @@ class Api
     public function withCursorPagination(CursorPaginator $pagination): static
     {
         $this->cursorPagination = $pagination;
+
+        return $this;
+    }
+
+    public function withSuccessResponse(SuccessResponse $response): static
+    {
+        $this->successResponse = $response;
 
         return $this;
     }
@@ -599,6 +610,7 @@ class Api
         $document = new OpenAPIDocument();
         $document->withPagination($this->pagination);
         $document->withCursorPagination($this->cursorPagination);
+        $document->withSuccessResponse($this->successResponse);
 
         foreach ($this->errorResponses as $code => $response) {
             if ($response instanceof Response) {

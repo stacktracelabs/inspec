@@ -301,6 +301,67 @@ Notes:
 - Use `422 => null` or `429 => null` to suppress an inferred error for a single route.
 - Use `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()` to configure the API-wide inferred error defaults.
 
+### Standard success responses
+
+`response: [...]` still defines the inner success payload for normal non-paginated operations.
+
+Use `Api::withSuccessResponse()` when that payload should be wrapped or when the default success description, content type, or headers should change API-wide.
+
+```php
+<?php
+
+namespace App\OpenApi;
+
+use StackTrace\Inspec\Api;
+use StackTrace\Inspec\Documentation;
+use StackTrace\Inspec\SuccessResponse;
+
+class WrappedSuccessResponse extends SuccessResponse
+{
+    protected static function defaultDescription(): string
+    {
+        return 'Successful response';
+    }
+
+    protected static function defaultContentType(): string
+    {
+        return 'application/vnd.api+json';
+    }
+
+    protected function buildBody(array $schema): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'data' => $schema,
+                'meta' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'wrapped' => [
+                            'type' => 'boolean',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+}
+
+class PublicApiDocumentation extends Documentation
+{
+    public function build(Api $api): void
+    {
+        $api
+            ->name('public')
+            ->withSuccessResponse(
+                (new WrappedSuccessResponse())->withHeaders([
+                    'x-trace-id:string' => 'Trace identifier',
+                ]),
+            );
+    }
+}
+```
+
 ### Paginated and cursor-paginated responses
 
 Use transformer class strings for paginated responses.

@@ -235,6 +235,47 @@ Use a transformer class as the value for a single object reference:
 ]
 ```
 
+### Standard success responses
+
+`response: [...]` defines the inner success body for normal non-paginated operations.
+
+Use `Api::withSuccessResponse()` to wrap that body API-wide or to change the default success description, headers, or content type.
+
+```php
+use StackTrace\Inspec\SuccessResponse;
+
+class WrappedSuccessResponse extends SuccessResponse
+{
+    protected static function defaultDescription(): string
+    {
+        return 'Successful response';
+    }
+
+    protected static function defaultContentType(): string
+    {
+        return 'application/vnd.api+json';
+    }
+
+    protected function buildBody(array $schema): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'data' => $schema,
+                'meta' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'wrapped' => [
+                            'type' => 'boolean',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+}
+```
+
 ### Paginated responses
 
 ```php
@@ -284,7 +325,7 @@ Generated pagination parameter behavior:
 - `cursorPaginatedResponse` uses the active `CursorPaginator` definition.
 - Use `Api::withPagination()` and `Api::withCursorPagination()` for API-wide defaults.
 - The paginator owns query params, paginator schema/meta, and the generated paginated success response.
-- When the paginated success envelope should change, use a custom paginator subclass or paginator response-metadata helpers on the API-level paginator definition.
+- When the paginated success envelope should change, use a custom paginator subclass or reconfigure the API-level paginator definition.
 
 ### Multipart uploads
 

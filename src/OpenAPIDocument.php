@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use League\Fractal\TransformerAbstract;
 use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\Responses\StandardSuccessResponse;
 use StackTrace\Inspec\Responses\TooManyRequestsResponse;
 use StackTrace\Inspec\Responses\ValidationErrorResponse;
 use Symfony\Component\Yaml\Yaml;
@@ -43,6 +44,8 @@ class OpenAPIDocument
 
     protected CursorPaginator $cursorPagination;
 
+    protected SuccessResponse $successResponse;
+
     /**
      * @var array<int, Response|null>
      */
@@ -52,6 +55,7 @@ class OpenAPIDocument
     {
         $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
+        $this->successResponse = new StandardSuccessResponse();
         $this->errorResponses = [
             422 => new ValidationErrorResponse(),
             429 => new TooManyRequestsResponse(),
@@ -117,6 +121,13 @@ class OpenAPIDocument
     public function withCursorPagination(CursorPaginator $cursorPagination): static
     {
         $this->cursorPagination = $cursorPagination;
+
+        return $this;
+    }
+
+    public function withSuccessResponse(SuccessResponse $response): static
+    {
+        $this->successResponse = $response;
 
         return $this;
     }
@@ -537,22 +548,11 @@ class OpenAPIDocument
         return $object;
     }
 
-    protected function buildResponse(array $def, string $description = '', string $type = 'application/json')
+    protected function buildSuccessResponse(array $definition): Response
     {
-        $response = [];
-        if (!empty($description)) {
-            $response['description'] = $description;
-        } else {
-            $response['description'] = 'Successful response';
-        }
-
-        $response['content'] = [
-            $type => [
-                'schema' => $this->buildObject($def),
-            ]
-        ];
-
-        return $response;
+        return $this->successResponse->buildResponse(
+            $this->buildObject($definition),
+        );
     }
 
     protected function resolvePaginatedItems(array|string $def): array
@@ -799,7 +799,7 @@ class OpenAPIDocument
         $responses = [];
 
         if (is_array($operation->response) && !empty($operation->response)) {
-            $responses[$operation->responseCode] = $this->buildResponse($operation->response);
+            $responses[$operation->responseCode] = $this->buildSuccessResponse($operation->response);
         } else if ($operation->paginatedResponse != null) {
             $responses[$operation->responseCode] = $this->buildPaginatorResponse(
                 $operation->paginatedResponse,
