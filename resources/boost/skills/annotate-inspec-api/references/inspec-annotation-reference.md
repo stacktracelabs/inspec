@@ -133,6 +133,27 @@ query: [
 
 ## Common patterns
 
+### Manual routes with `Operation`
+Use `StackTrace\Inspec\Operation` when documenting an existing Laravel route through `Api::post(...)`, `Api::route(...)`, and the other manual helpers, and you want the operation metadata to be built explicitly as an object:
+
+```php
+use StackTrace\Inspec\Operation;
+
+$api->post(
+    '/webhooks',
+    operation: (new Operation(tags: 'Webhooks'))
+        ->summary('Receive webhook deliveries')
+        ->request([
+            'event:string' => 'Webhook event name',
+        ])
+        ->response([
+            'status:string' => 'Delivery status',
+        ]),
+);
+```
+
+Do not mix `operation:` with the helper's other metadata arguments on the same call.
+
 ### Basic JSON endpoint
 
 ```php
@@ -323,6 +344,7 @@ Rules:
 - With Sanctum enabled, routes with `auth:sanctum` middleware automatically receive `security: [{ bearerAuth: [] }]`.
 - The generator registers the `bearerAuth` security scheme only when Sanctum is enabled and at least one included route actually uses it.
 - With broadcasting enabled, the registered Pusher-related broadcasting auth routes are auto-documented when present.
+- `withBroadcasting()` may accept a callback that customizes each discovered broadcasting `Operation` or returns `null` to skip it.
 - If a request body exists, Inspec infers a `422` validation response unless route-level or API-level configuration disables or replaces it.
 - If a route uses `throttle` middleware, Inspec infers a `429` too-many-requests response unless route-level or API-level configuration disables or replaces it.
 - `additionalResponses` accepts `null`, plain strings, `Response` instances, and `Response` class strings.

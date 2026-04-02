@@ -4,7 +4,6 @@
 namespace StackTrace\Inspec;
 
 
-use StackTrace\Inspec\Route as RouteAttribute;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -721,33 +720,33 @@ class OpenAPIDocument
         return "#/components/responses/{$response->name}";
     }
 
-    protected function addRoute(Route $route, RouteAttribute $description, string $method, ?string $path = null): static
+    protected function addRoute(Route $route, Operation $operation, string $method, ?string $path = null): static
     {
-        $this->assertPaginatorOverridesAreValid($description);
+        $this->assertPaginatorOverridesAreValid($operation);
 
         $url = $path ?: '/'.ltrim($route->uri(), '/');
 
         $path = ArrayBuilder::make()
-            ->setUnlessEmpty('tags', $description->tags)
-            ->setUnlessEmpty('summary', $description->summary);
+            ->setUnlessEmpty('tags', $operation->tags)
+            ->setUnlessEmpty('summary', $operation->summary);
 
-        if ($description->deprecated) {
+        if ($operation->deprecated) {
             $path['deprecated'] = true;
         }
 
         // Parameters
         $parameters = [];
-        if (! empty($description->route)) {
+        if (! empty($operation->route)) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildPathParameters($description->route),
+                ...$this->buildPathParameters($operation->route),
             ];
         }
 
-        if (! empty($description->query)) {
+        if (! empty($operation->query)) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildQueryParameters($description->query),
+                ...$this->buildQueryParameters($operation->query),
             ];
         }
 
@@ -762,24 +761,24 @@ class OpenAPIDocument
             $this->usesSanctumSecurity = true;
         }
 
-        if ($description->cursorPaginatedResponse) {
+        if ($operation->cursorPaginatedResponse) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildQueryParameters(($description->cursorPaginator ?? $this->cursorPagination)->query),
+                ...$this->buildQueryParameters(($operation->cursorPaginator ?? $this->cursorPagination)->query),
             ];
         }
 
-        if ($description->paginatedResponse) {
+        if ($operation->paginatedResponse) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildQueryParameters(($description->paginator ?? $this->pagination)->query),
+                ...$this->buildQueryParameters(($operation->paginator ?? $this->pagination)->query),
             ];
         }
 
         $path->setUnlessEmpty('parameters', $parameters);
 
         // Tags
-        $tags = $description->tags;
+        $tags = $operation->tags;
         foreach ($tags as $tag) {
             if (! in_array($tag, $this->tags)) {
                 $this->tag($tag);
@@ -787,26 +786,26 @@ class OpenAPIDocument
         }
 
         // Request
-        if (is_array($description->request) && !empty($description->request)) {
-            $path['requestBody'] = $this->buildRequest($description->request, type: $description->multipart ? 'multipart/form-data' : 'application/json');
+        if (is_array($operation->request) && !empty($operation->request)) {
+            $path['requestBody'] = $this->buildRequest($operation->request, type: $operation->multipart ? 'multipart/form-data' : 'application/json');
         }
 
         // Response
         $responses = [];
 
-        if (is_array($description->response) && !empty($description->response)) {
-            $responses[$description->responseCode] = $this->buildResponse($description->response);
-        } else if ($description->paginatedResponse != null) {
-            $responses[$description->responseCode] = $this->buildPaginatorResponse($description->paginatedResponse, $description->paginator ?? $this->pagination);
-        } else if ($description->cursorPaginatedResponse != null) {
-            $responses[$description->responseCode] = $this->buildPaginatorResponse($description->cursorPaginatedResponse, $description->cursorPaginator ?? $this->cursorPagination);
+        if (is_array($operation->response) && !empty($operation->response)) {
+            $responses[$operation->responseCode] = $this->buildResponse($operation->response);
+        } else if ($operation->paginatedResponse != null) {
+            $responses[$operation->responseCode] = $this->buildPaginatorResponse($operation->paginatedResponse, $operation->paginator ?? $this->pagination);
+        } else if ($operation->cursorPaginatedResponse != null) {
+            $responses[$operation->responseCode] = $this->buildPaginatorResponse($operation->cursorPaginatedResponse, $operation->cursorPaginator ?? $this->cursorPagination);
         }
 
-        foreach ($this->buildInferredErrorResponses($description, $middleware) as $code => $response) {
+        foreach ($this->buildInferredErrorResponses($operation, $middleware) as $code => $response) {
             $responses[$code] = $response;
         }
 
-        foreach ($this->buildAdditionalResponses($description->additionalResponses) as $code => $response) {
+        foreach ($this->buildAdditionalResponses($operation->additionalResponses) as $code => $response) {
             if ($response === null) {
                 unset($responses[$code]);
                 continue;
@@ -832,11 +831,11 @@ class OpenAPIDocument
         return $this;
     }
 
-    protected function buildInferredErrorResponses(RouteAttribute $description, Collection $middleware): array
+    protected function buildInferredErrorResponses(Operation $operation, Collection $middleware): array
     {
         $responses = [];
 
-        if (is_array($description->request) && ! empty($description->request)) {
+        if (is_array($operation->request) && ! empty($operation->request)) {
             $response = $this->errorResponses[422] ?? null;
 
             if ($response instanceof Response) {
@@ -958,13 +957,13 @@ class OpenAPIDocument
         return $parameters;
     }
 
-    protected function assertPaginatorOverridesAreValid(RouteAttribute $description): void
+    protected function assertPaginatorOverridesAreValid(Operation $operation): void
     {
-        if ($description->paginator && ! $description->paginatedResponse) {
+        if ($operation->paginator && ! $operation->paginatedResponse) {
             throw GeneratorException::withMessage('The [paginator] override requires [paginatedResponse].');
         }
 
-        if ($description->cursorPaginator && ! $description->cursorPaginatedResponse) {
+        if ($operation->cursorPaginator && ! $operation->cursorPaginatedResponse) {
             throw GeneratorException::withMessage('The [cursorPaginator] override requires [cursorPaginatedResponse].');
         }
     }
@@ -979,7 +978,7 @@ class OpenAPIDocument
     /**
      * Add registered route to the document.
      */
-    public function route(Route $route, RouteAttribute $description, ?string $method = null, ?string $path = null): static
+    public function route(Route $route, Operation $operation, ?string $method = null, ?string $path = null): static
     {
         if (! is_null($method)) {
             $method = Str::lower($method);
@@ -988,7 +987,7 @@ class OpenAPIDocument
                 return $this;
             }
 
-            $this->addRoute($route, $description, $method, $path);
+            $this->addRoute($route, $operation, $method, $path);
 
             return $this;
         }
@@ -1000,7 +999,7 @@ class OpenAPIDocument
                 continue;
             }
 
-            $this->addRoute($route, $description, $method, $path);
+            $this->addRoute($route, $operation, $method, $path);
         }
 
         return $this;

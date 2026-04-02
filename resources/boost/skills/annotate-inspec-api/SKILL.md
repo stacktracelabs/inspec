@@ -18,6 +18,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
    - `response` for standard success bodies
    - `paginatedResponse` or `cursorPaginatedResponse` for transformer-backed collections
    - `paginator` or `cursorPaginator` only when that route needs to override the API-level pagination definition
+   - `operation: new Operation(...)` when a manual route should be authored or customized as a reusable object
 4. If a response points to a Fractal transformer class, ensure its `transform()` method has `#[Schema(...)]`. If the transformer exposes includes, annotate `include*` methods with `#[ExpandItem]` or `#[ExpandCollection]`.
 5. Verify generation with `php artisan inspec:generate --stdout` when available. Prefer narrowing to the routes you touched with `--api`, `--path`, `--route`, and `--method` so you can inspect the generated YAML without rewriting files.
 
@@ -53,6 +54,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when the generated spec should opt out.
 - With Sanctum enabled, routes using `auth:sanctum` automatically receive `bearerAuth`; do not model that in the attribute.
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
+- `withBroadcasting(fn (Operation $operation, Route $route) => ...)` can customize those auto-documented broadcasting operations or return `null` to skip one.
 - A request body automatically adds a `422` validation response unless `additionalResponses[422]` or API-level error-response configuration overrides it.
 - Routes with `throttle` middleware automatically add a `429` response unless `additionalResponses[429]` or API-level error-response configuration overrides it.
 - API-wide inferred error defaults live on `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()`.

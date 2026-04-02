@@ -61,6 +61,7 @@ Generation currently works like this:
 - `Api` scans the configured controller paths for public methods with `#[StackTrace\Inspec\Route(...)]`.
 - Each annotated method must also be registered as a Laravel route. Unregistered methods are skipped.
 - `Api` can also document existing Laravel routes directly with helpers like `post('/webhooks', ...)` or `route('webhooks.receive', ...)`.
+- Manual route helpers also accept `operation: new \StackTrace\Inspec\Operation(...)` when you want to build or customize the route metadata explicitly.
 - Invokable controllers are supported through `__invoke`.
 - Transformer schemas are collected from `#[Schema(...)]` on the transformer's `transform()` method.
 - Call `->prefix('api')` when Laravel routes are registered under `/api` but you want generated paths like `/users` instead of `/api/users`.
@@ -112,6 +113,7 @@ namespace App\OpenApi;
 
 use StackTrace\Inspec\Api;
 use StackTrace\Inspec\Documentation;
+use StackTrace\Inspec\Operation;
 
 class WebhookDocumentation extends Documentation
 {
@@ -143,6 +145,22 @@ class WebhookDocumentation extends Documentation
 ```
 
 Both helpers resolve a real Laravel route before documenting it. If the route does not exist, or if a method/path match is ambiguous, generation fails.
+
+You can also pass a prebuilt `Operation` to the helper instead of the long named-argument surface:
+
+```php
+$api->post(
+    '/webhooks',
+    operation: (new Operation(tags: 'Webhooks'))
+        ->summary('Receive webhook deliveries')
+        ->request([
+            'event:string' => 'Webhook event name',
+        ])
+        ->response([
+            'status:string' => 'Delivery status',
+        ]),
+);
+```
 
 If Laravel registers a real route as `/api/webhooks` but you want the generated OpenAPI path to be `/webhooks`, configure `->prefix('api')` and still reference the real Laravel URI in the helper:
 
@@ -645,13 +663,20 @@ Some documentation is inferred from the resolved Laravel route rather than the a
   - `/broadcasting/auth`
   - `/broadcasting/user-auth`
 - Broadcasting auto-docs only appear when those real Laravel routes are actually registered, and they still respect `prefix()`, `filterPath()`, `filterRoute()`, `filterMethod()`, and the generate-command filters.
+- `withBroadcasting()` can accept a callback to customize each discovered broadcasting operation or return `null` to skip it.
 
 Example:
 
 ```php
 $api
     ->prefix('api')
-    ->withoutBroadcasting()
+    ->withBroadcasting(function (\StackTrace\Inspec\Operation $operation, \Illuminate\Routing\Route $route) {
+        if ($route->uri() === 'api/broadcasting/user-auth') {
+            return null;
+        }
+
+        return $operation->tags('Realtime');
+    })
     ->withoutSanctum();
 ```
 

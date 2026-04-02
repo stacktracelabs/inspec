@@ -98,6 +98,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Keep annotations faithful to actual controller and transformer behavior. Do not invent fields that are not returned or accepted.
 - Use `responseCode: 201` for create endpoints and `additionalResponses` for extra status codes.
 - `additionalResponses` may use `null`, plain strings, `Response` instances, or `Response` class strings.
+- Manual route helpers may also take `operation: new Operation(...)` instead of the long named-argument form.
 - Request bodies infer `422`, and throttled routes infer `429`, unless the route or API configuration disables or replaces them.
 - Use `paginatedResponse` or `cursorPaginatedResponse` with transformer class strings for paginated collections.
 - Customize pagination globally with `Api::withPagination()` / `Api::withCursorPagination()`, or per route with `paginator:` / `cursorPaginator:` overrides.
@@ -107,5 +108,6 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when a spec should opt out.
 - With Sanctum enabled, only included routes that actually use `auth:sanctum` receive bearer auth security, and the `bearerAuth` scheme is registered only when needed.
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
+- `withBroadcasting()` may receive a callback that customizes each discovered broadcasting `Operation` or returns `null` to skip it.
 - Use `Api::prefix(...)` only when you want to strip a real Laravel route prefix from generated operation paths. Server URLs stay exactly as authored.
 - Prefer `--stdout` plus `--api`, `--path`, `--route`, and `--method` when verifying changes so you do not rewrite generated files unnecessarily.

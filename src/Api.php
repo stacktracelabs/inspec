@@ -4,12 +4,15 @@
 namespace StackTrace\Inspec;
 
 
+use Closure;
 use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Routing\Route as LaravelRoute;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use StackTrace\Inspec\Operations\Broadcasting\AuthenticateWebsocketUserOperation;
+use StackTrace\Inspec\Operations\Broadcasting\AuthorizeWebsocketChannelOperation;
 use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use StackTrace\Inspec\Responses\TooManyRequestsResponse;
@@ -52,6 +55,8 @@ class Api
     protected bool $sanctum = true;
 
     protected bool $broadcasting = true;
+
+    protected ?Closure $broadcastingCallback = null;
 
     protected string $prefix = '';
 
@@ -229,9 +234,10 @@ class Api
         return $this;
     }
 
-    public function withBroadcasting(): static
+    public function withBroadcasting(?callable $callback = null): static
     {
         $this->broadcasting = true;
+        $this->broadcastingCallback = $callback === null ? null : Closure::fromCallable($callback);
 
         return $this;
     }
@@ -318,6 +324,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         $method = Str::upper(trim($method));
         $uri = $this->normalizeLookupUri($uri);
@@ -330,7 +337,7 @@ class Api
             'type' => 'method',
             'method' => $method,
             'uri' => $uri,
-            'description' => $this->buildRouteAttribute(
+            'operation' => $this->buildOperation(
                 tags: $tags,
                 summary: $summary,
                 description: $description,
@@ -346,6 +353,7 @@ class Api
                 cursorPaginator: $cursorPaginator,
                 deprecated: $deprecated,
                 multipart: $multipart,
+                operation: $operation,
             ),
         ];
 
@@ -369,6 +377,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         return $this->method(
             method: 'GET',
@@ -388,6 +397,7 @@ class Api
             cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
+            operation: $operation,
         );
     }
 
@@ -408,6 +418,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         return $this->method(
             method: 'POST',
@@ -427,6 +438,7 @@ class Api
             cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
+            operation: $operation,
         );
     }
 
@@ -447,6 +459,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         return $this->method(
             method: 'PUT',
@@ -466,6 +479,7 @@ class Api
             cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
+            operation: $operation,
         );
     }
 
@@ -486,6 +500,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         return $this->method(
             method: 'PATCH',
@@ -505,6 +520,7 @@ class Api
             cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
+            operation: $operation,
         );
     }
 
@@ -525,6 +541,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         return $this->method(
             method: 'DELETE',
@@ -544,6 +561,7 @@ class Api
             cursorPaginator: $cursorPaginator,
             deprecated: $deprecated,
             multipart: $multipart,
+            operation: $operation,
         );
     }
 
@@ -564,6 +582,7 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
+        ?Operation $operation = null,
     ): static {
         $name = trim($name);
 
@@ -574,7 +593,7 @@ class Api
         $this->manualRoutes[] = [
             'type' => 'name',
             'name' => $name,
-            'description' => $this->buildRouteAttribute(
+            'operation' => $this->buildOperation(
                 tags: $tags,
                 summary: $summary,
                 description: $description,
@@ -590,6 +609,7 @@ class Api
                 cursorPaginator: $cursorPaginator,
                 deprecated: $deprecated,
                 multipart: $multipart,
+                operation: $operation,
             ),
         ];
 
@@ -690,10 +710,10 @@ class Api
                     continue;
                 }
 
-                $description = $attribute->newInstance();
+                $operation = Operation::fromRoute($attribute->newInstance());
 
                 foreach ($this->documentedMethodsForRoute($route) as $method) {
-                    $document->route($route, $description, $method, $this->resolveDocumentPath($route->uri()));
+                    $document->route($route, $operation, $method, $this->resolveDocumentPath($route->uri()));
                 }
             }
         });
@@ -702,7 +722,7 @@ class Api
     protected function documentManualRoutes(OpenAPIDocument $document): void
     {
         foreach ($this->manualRoutes as $manualRoute) {
-            $description = $manualRoute['description'];
+            $operation = $manualRoute['operation'];
 
             if ($manualRoute['type'] === 'name') {
                 $route = $this->resolveRouteByName($manualRoute['name']);
@@ -712,7 +732,7 @@ class Api
                 }
 
                 foreach ($this->documentedMethodsForRoute($route) as $method) {
-                    $document->route($route, $description, $method, $this->resolveDocumentPath($route->uri()));
+                    $document->route($route, $operation, $method, $this->resolveDocumentPath($route->uri()));
                 }
 
                 continue;
@@ -724,7 +744,7 @@ class Api
                 continue;
             }
 
-            $document->route($route, $description, $manualRoute['method'], $this->resolveDocumentPath($route->uri()));
+            $document->route($route, $operation, $manualRoute['method'], $this->resolveDocumentPath($route->uri()));
         }
     }
 
@@ -744,10 +764,16 @@ class Api
                     continue;
                 }
 
+                $operation = $this->resolveBroadcastingOperation($definition['operation'], $route);
+
+                if ($operation === null) {
+                    continue;
+                }
+
                 foreach ($this->documentedMethodsForRoute($route) as $method) {
                     $document->route(
                         route: $route,
-                        description: $definition['description'],
+                        operation: $operation,
                         method: $method,
                         path: $this->resolveDocumentPath($route->uri()),
                     );
@@ -901,37 +927,37 @@ class Api
         return [
             [
                 'action' => BroadcastController::class.'@authenticate',
-                'description' => new RouteAttribute(
-                    tags: 'Broadcasting',
-                    summary: 'Authorize Websocket channel',
-                    request: [
-                        'socket_id:string' => 'The socket identifier',
-                        'channel_name:string' => 'The channel name',
-                    ],
-                    response: [
-                        'auth:string' => 'Auth token',
-                        'channel_data:string' => 'Double-encoded JSON containing channel information.',
-                    ],
-                ),
+                'operation' => new AuthorizeWebsocketChannelOperation(),
             ],
             [
                 'action' => BroadcastController::class.'@authenticateUser',
-                'description' => new RouteAttribute(
-                    tags: 'Broadcasting',
-                    summary: 'Authenticate Websocket user',
-                    request: [
-                        'socket_id:string' => 'The socket identifier',
-                    ],
-                    response: [
-                        'auth:string' => 'Auth token',
-                        'user_data:string' => 'Double-encoded JSON containing authenticated user information.',
-                    ],
-                ),
+                'operation' => new AuthenticateWebsocketUserOperation(),
             ],
         ];
     }
 
-    protected function buildRouteAttribute(
+    protected function resolveBroadcastingOperation(Operation $operation, LaravelRoute $route): ?Operation
+    {
+        $operation = clone $operation;
+
+        if ($this->broadcastingCallback === null) {
+            return $operation;
+        }
+
+        $operation = ($this->broadcastingCallback)($operation, $route);
+
+        if ($operation === null) {
+            return null;
+        }
+
+        if (! ($operation instanceof Operation)) {
+            throw GeneratorException::withMessage('The broadcasting callback must return an Operation instance or null.');
+        }
+
+        return $operation;
+    }
+
+    protected function buildOperation(
         array|string $tags = [],
         string $summary = '',
         string $description = '',
@@ -947,8 +973,32 @@ class Api
         ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
-    ): RouteAttribute {
-        return new RouteAttribute(
+        ?Operation $operation = null,
+    ): Operation {
+        $this->assertOperationArgumentsAreExclusive(
+            tags: $tags,
+            summary: $summary,
+            description: $description,
+            route: $route,
+            query: $query,
+            request: $request,
+            response: $response,
+            paginatedResponse: $paginatedResponse,
+            cursorPaginatedResponse: $cursorPaginatedResponse,
+            paginator: $paginator,
+            responseCode: $responseCode,
+            additionalResponses: $additionalResponses,
+            cursorPaginator: $cursorPaginator,
+            deprecated: $deprecated,
+            multipart: $multipart,
+            operation: $operation,
+        );
+
+        if ($operation instanceof Operation) {
+            return clone $operation;
+        }
+
+        return new Operation(
             tags: $tags,
             summary: $summary,
             description: $description,
@@ -965,6 +1015,49 @@ class Api
             deprecated: $deprecated,
             multipart: $multipart,
         );
+    }
+
+    protected function assertOperationArgumentsAreExclusive(
+        array|string $tags = [],
+        string $summary = '',
+        string $description = '',
+        array $route = [],
+        array $query = [],
+        ?array $request = null,
+        ?array $response = null,
+        array|string|null $paginatedResponse = null,
+        array|string|null $cursorPaginatedResponse = null,
+        ?LengthAwarePaginator $paginator = null,
+        int $responseCode = 200,
+        array $additionalResponses = [],
+        ?CursorPaginator $cursorPaginator = null,
+        bool $deprecated = false,
+        bool $multipart = false,
+        ?Operation $operation = null,
+    ): void {
+        if (! $operation) {
+            return;
+        }
+
+        if (
+            $tags !== []
+            || $summary !== ''
+            || $description !== ''
+            || $route !== []
+            || $query !== []
+            || $request !== null
+            || $response !== null
+            || $paginatedResponse !== null
+            || $cursorPaginatedResponse !== null
+            || $paginator !== null
+            || $responseCode !== 200
+            || $additionalResponses !== []
+            || $cursorPaginator !== null
+            || $deprecated !== false
+            || $multipart !== false
+        ) {
+            throw GeneratorException::withMessage('The [operation] argument cannot be combined with other operation metadata arguments.');
+        }
     }
 
     protected function assertSupportedErrorResponseCode(int $code): void
