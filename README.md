@@ -2,7 +2,7 @@
 
 `stacktrace/inspec` generates an OpenAPI 3 document from PHP attributes on Laravel controller actions and Fractal transformers.
 
-It is route-aware at generation time: controller attributes are only documented when the annotated method also resolves to a registered Laravel route.
+It is route-aware at generation time: every documented operation is paired with a real Laravel route, so Inspec can infer methods, middleware, and auth from the framework route definition.
 
 ## Installation
 
@@ -12,34 +12,125 @@ composer require stacktrace/inspec
 
 ## How it works
 
-The package revolves around `StackTrace\Inspec\Generator` and `StackTrace\Inspec\Document`.
+The package revolves around `StackTrace\Inspec\Api`, `StackTrace\Inspec\Documentation`, and `StackTrace\Inspec\OpenAPIDocument`.
 
 ```php
-use StackTrace\Inspec\Generator;
+use StackTrace\Inspec\Api;
+use StackTrace\Inspec\Documentation;
 
-$document = (new Generator(
-    title: 'Example API',
-    description: 'Public API documentation',
-    version: '1.0.0',
-    servers: [
-        'Production' => 'https://api.example.com',
-        'Local' => 'http://localhost:8000',
-    ],
-    paths: [
-        app_path('Http/Controllers/Api'),
-    ],
-))->generate();
+class PublicApiDocumentation extends Documentation
+{
+    public function build(Api $api): void
+    {
+        $api
+            ->name('public')
+            ->title('Example API')
+            ->description('Public API documentation')
+            ->version('1.0.0')
+            ->servers([
+                'Production' => 'https://api.example.com',
+                'Local' => 'http://localhost:8000',
+            ])
+            ->controllers(app_path('Http/Controllers/Api'))
+            ->post(
+                '/webhooks',
+                tags: 'Webhooks',
+                summary: 'Receive webhook deliveries',
+                request: [
+                    'event:string' => 'Webhook event name',
+                ],
+                response: [
+                    'status:string' => 'Delivery status',
+                ],
+            );
+    }
+}
+
+$api = new Api();
+(new PublicApiDocumentation())->build($api);
+
+$document = $api->toOpenAPI();
 
 $yaml = $document->toYaml();
 ```
 
 Generation currently works like this:
 
-- `Generator` scans the configured controller paths for public methods with `#[StackTrace\Inspec\Route(...)]`.
+- `Documentation` classes configure an `Api` builder.
+- `Api` scans the configured controller paths for public methods with `#[StackTrace\Inspec\Route(...)]`.
 - Each annotated method must also be registered as a Laravel route. Unregistered methods are skipped.
+- `Api` can also document existing Laravel routes directly with helpers like `post('/webhooks', ...)` or `route('webhooks.receive', ...)`.
 - Invokable controllers are supported through `__invoke`.
 - Transformer schemas are collected from `#[Schema(...)]` on the transformer's `transform()` method.
-- The bundled generator initializes `Document` with the `api` prefix, so generated paths strip a leading `/api`.
+- The bundled builder initializes `OpenAPIDocument` with the `api` prefix, so generated paths strip a leading `/api`.
+
+## Generate Command
+
+Configure the documentation classes in `config/inspec.php`:
+
+```php
+return [
+    'output' => 'openapi',
+    'docs' => [
+        App\OpenApi\PublicApiDocumentation::class,
+    ],
+];
+```
+
+Then generate all configured specs:
+
+```bash
+php artisan inspec:generate
+```
+
+Or generate one configured API by its `name()`:
+
+```bash
+php artisan inspec:generate public
+```
+
+## Documenting Existing Laravel Routes
+
+Not every route lives in a controller you can annotate. For package routes, closure routes, or third-party endpoints, configure them directly inside `build()`:
+
+```php
+<?php
+
+namespace App\OpenApi;
+
+use StackTrace\Inspec\Api;
+use StackTrace\Inspec\Documentation;
+
+class WebhookDocumentation extends Documentation
+{
+    public function build(Api $api): void
+    {
+        $api
+            ->name('webhooks')
+            ->post(
+                '/webhooks',
+                tags: 'Webhooks',
+                summary: 'Receive webhook deliveries',
+                request: [
+                    'event:string' => 'Webhook event name',
+                ],
+                response: [
+                    'status:string' => 'Delivery status',
+                ],
+            )
+            ->route(
+                'webhooks.named',
+                tags: 'Webhooks',
+                summary: 'Named webhook endpoint',
+                response: [
+                    'status:string' => 'Webhook response status',
+                ],
+            );
+    }
+}
+```
+
+Both helpers resolve a real Laravel route before documenting it. If the route does not exist, or if a method/path match is ambiguous, generation fails.
 
 ## Annotating controller routes
 
@@ -379,11 +470,11 @@ If a field value is a transformer class string, Inspec resolves the transformer'
 ]
 ```
 
-`StackTrace\Inspec\Document` also supports `SchemaObject` references when you build objects programmatically.
+`StackTrace\Inspec\OpenAPIDocument` also supports `SchemaObject` references when you build objects programmatically.
 
 ### Request and response nullability rules
 
-`Document::buildObject()` uses different rules depending on what is being built.
+`OpenAPIDocument::buildObject()` uses different rules depending on what is being built.
 
 For request, response, and pagination-meta objects:
 
@@ -478,7 +569,7 @@ Transformer schema behavior:
 Some documentation is inferred from the resolved Laravel route rather than the attribute itself:
 
 - Routes with the `auth:sanctum` middleware receive `security: [{ bearerAuth: [] }]`.
-- The `bearerAuth` security scheme is registered automatically by `Generator`.
+- The `bearerAuth` security scheme is registered automatically by `Api`.
 
 ## Current limitations
 

@@ -6,35 +6,23 @@ return [
     | Output Directory
     |--------------------------------------------------------------------------
     |
-    | Generated OpenAPI files are written into this directory by default.
-    | Each configured API uses its configuration key as the output filename
-    | unless a custom output path is defined for that API.
+    | Generated OpenAPI files are written into this directory. Each
+    | documentation class must define its own API name, which becomes the
+    | generated filename: <name>.yaml.
     |
     */
     'output' => 'openapi',
 
     /*
     |--------------------------------------------------------------------------
-    | APIs
+    | Documentation Classes
     |--------------------------------------------------------------------------
     |
-    | Configure one or more separate APIs. Each API generates its own
-    | OpenAPI file, allowing applications to publish independent specs for
-    | different controller trees.
+    | Each documentation class receives a fresh StackTrace\Inspec\Api
+    | instance and is responsible for describing exactly one OpenAPI spec.
     |
     */
-    'apis' => [
-        'api' => [
-            'title' => config('app.name', 'Laravel'),
-            'description' => '',
-            'version' => '1.0.0',
-            'servers' => [
-                'Local' => config('app.url', 'http://localhost'),
-            ],
-            'paths' => [
-                app_path('Http/Controllers/Api'),
-            ],
-            // 'output' => 'openapi/public-api.yaml',
-        ],
+    'docs' => [
+        // App\OpenApi\PublicApiDocumentation::class,
     ],
 ];

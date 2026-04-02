@@ -2,60 +2,41 @@
 
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Yaml\Yaml;
+use Workbench\App\OpenApi\AmbiguousWebhookDocumentation;
+use Workbench\App\OpenApi\ControllerDocumentation;
+use Workbench\App\OpenApi\ManualWebhookDocumentation;
+use Workbench\App\OpenApi\MissingNamedRouteDocumentation;
+use Workbench\App\OpenApi\MissingWebhookDocumentation;
+use Workbench\App\OpenApi\NamedWebhookDocumentation;
+use Workbench\App\OpenApi\NamelessDocumentation;
 
 afterEach(function () {
     File::deleteDirectory(base_path('inspec-tests'));
 });
 
-test('it writes separate specs for each configured api', function () {
+test('it writes the spec for a documentation class that discovers controller routes', function () {
     config()->set('inspec.output', 'inspec-tests/openapi');
-    config()->set('inspec.apis', [
-        'public' => [
-            'title' => 'Public API',
-            'description' => 'Generated from tests',
-            'version' => '2026.04.01',
-            'servers' => [
-                'Production' => 'https://api.example.com',
-                'Local' => 'http://localhost:8000',
-            ],
-            'paths' => [
-                \Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'),
-            ],
-        ],
-        'admin' => [
-            'title' => 'Admin API',
-            'description' => 'Administrative endpoints',
-            'version' => '2026.04.02',
-            'servers' => [
-                'Backoffice' => 'https://admin.example.com',
-            ],
-            'paths' => [
-                \Orchestra\Testbench\workbench_path('app/Http/Controllers/Admin'),
-            ],
-        ],
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
     ]);
 
     $publicOutput = base_path('inspec-tests/openapi/public.yaml');
-    $adminOutput = base_path('inspec-tests/openapi/admin.yaml');
 
     $this->artisan('inspec:generate')
         ->expectsOutputToContain($publicOutput)
-        ->expectsOutputToContain($adminOutput)
         ->assertSuccessful();
 
-    expect(File::exists($publicOutput))->toBeTrue()
-        ->and(File::exists($adminOutput))->toBeTrue();
+    expect(File::exists($publicOutput))->toBeTrue();
 
-    $publicDocument = Yaml::parseFile($publicOutput);
-    $adminDocument = Yaml::parseFile($adminOutput);
+    $document = Yaml::parseFile($publicOutput);
 
-    expect($publicDocument['info'])->toMatchArray([
+    expect($document['info'])->toMatchArray([
         'title' => 'Public API',
-        'description' => 'Generated from tests',
-        'version' => '2026.04.01',
+        'description' => 'Generated from documentation class',
+        'version' => '2026.04.02',
     ]);
 
-    expect($publicDocument['servers'])->toBe([
+    expect($document['servers'])->toBe([
         [
             'url' => 'https://api.example.com',
             'description' => 'Production',
@@ -66,64 +47,34 @@ test('it writes separate specs for each configured api', function () {
         ],
     ]);
 
-    expect($publicDocument['paths']['/spec-test']['get']['summary'])->toBe('Generate spec fixture');
-
-    expect($adminDocument['info'])->toMatchArray([
-        'title' => 'Admin API',
-        'description' => 'Administrative endpoints',
-        'version' => '2026.04.02',
-    ]);
-
-    expect($adminDocument['servers'])->toBe([
-        [
-            'url' => 'https://admin.example.com',
-            'description' => 'Backoffice',
-        ],
-    ]);
-
-    expect($adminDocument['paths']['/admin/spec-test']['get']['summary'])->toBe('Generate admin spec fixture');
+    expect($document['paths']['/spec-test']['get']['summary'])->toBe('Generate spec fixture');
 });
 
-test('it can generate a single configured api', function () {
+test('it can generate only the selected api', function () {
     config()->set('inspec.output', 'inspec-tests/openapi');
-    config()->set('inspec.apis', [
-        'public' => [
-            'paths' => [
-                \Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'),
-            ],
-        ],
-        'admin' => [
-            'paths' => [
-                \Orchestra\Testbench\workbench_path('app/Http/Controllers/Admin'),
-            ],
-        ],
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+        ManualWebhookDocumentation::class,
     ]);
 
     $publicOutput = base_path('inspec-tests/openapi/public.yaml');
-    $adminOutput = base_path('inspec-tests/openapi/admin.yaml');
+    $webhookOutput = base_path('inspec-tests/openapi/webhooks.yaml');
 
-    $this->artisan('inspec:generate', ['api' => 'admin'])
-        ->expectsOutputToContain($adminOutput)
+    $this->artisan('inspec:generate', ['api' => 'webhooks'])
+        ->expectsOutputToContain($webhookOutput)
         ->assertSuccessful();
 
-    expect(File::exists($adminOutput))->toBeTrue()
+    expect(File::exists($webhookOutput))->toBeTrue()
         ->and(File::exists($publicOutput))->toBeFalse();
 });
 
-test('it supports the legacy single-api configuration', function () {
-    config()->set('inspec.apis', null);
-    config()->set('inspec.title', 'Legacy API');
-    config()->set('inspec.description', 'Legacy configuration');
-    config()->set('inspec.version', '2026.04.03');
-    config()->set('inspec.servers', [
-        'Legacy' => 'https://legacy.example.com',
+test('it documents a manually defined route and infers middleware-based security', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ManualWebhookDocumentation::class,
     ]);
-    config()->set('inspec.paths', [
-        \Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'),
-    ]);
-    config()->set('inspec.output', 'inspec-tests/legacy/openapi.yaml');
 
-    $output = base_path('inspec-tests/legacy/openapi.yaml');
+    $output = base_path('inspec-tests/openapi/webhooks.yaml');
 
     $this->artisan('inspec:generate')
         ->expectsOutputToContain($output)
@@ -133,32 +84,81 @@ test('it supports the legacy single-api configuration', function () {
 
     $document = Yaml::parseFile($output);
 
-    expect($document['info'])->toMatchArray([
-        'title' => 'Legacy API',
-        'description' => 'Legacy configuration',
-        'version' => '2026.04.03',
-    ]);
+    expect($document['paths']['/webhooks']['post']['summary'])->toBe('Receive webhooks')
+        ->and($document['paths']['/webhooks']['post']['security'])->toBe([
+            [
+                'bearerAuth' => [],
+            ],
+        ]);
 });
 
-test('it fails when a configured controller path does not exist', function () {
+test('it documents a named route using its real methods', function () {
     config()->set('inspec.output', 'inspec-tests/openapi');
-    config()->set('inspec.apis', [
-        'public' => [
-            'paths' => [
-                \Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'),
-            ],
-        ],
-        'missing' => [
-            'paths' => [
-                base_path('inspec-tests/missing'),
-            ],
-        ],
+    config()->set('inspec.docs', [
+        NamedWebhookDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/named-webhooks.yaml');
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain($output)
+        ->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect($document['paths']['/webhooks/named']['get']['summary'])->toBe('Named webhook route')
+        ->and($document['paths']['/webhooks/named']['post']['summary'])->toBe('Named webhook route');
+});
+
+test('it fails when documentation does not set an api name', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        NamelessDocumentation::class,
     ]);
 
     $this->artisan('inspec:generate')
-        ->expectsOutputToContain('does not exist or is not a directory')
+        ->expectsOutputToContain('must define an API name')
         ->assertExitCode(1);
+});
 
-    expect(File::exists(base_path('inspec-tests/openapi/public.yaml')))->toBeFalse()
-        ->and(File::exists(base_path('inspec-tests/openapi/missing.yaml')))->toBeFalse();
+test('it fails when a manual route does not exist', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        MissingWebhookDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain('Unable to resolve route [POST /missing-webhook]')
+        ->assertExitCode(1);
+});
+
+test('it fails when a manual route selector is ambiguous', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        AmbiguousWebhookDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain('The route [POST /webhooks/ambiguous] is ambiguous')
+        ->assertExitCode(1);
+});
+
+test('it fails when a named route does not exist', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        MissingNamedRouteDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain('Unable to resolve route [webhooks.missing] by name')
+        ->assertExitCode(1);
+});
+
+test('it fails when no docs are configured', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', []);
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain('The [inspec.docs] configuration is empty')
+        ->assertExitCode(1);
 });

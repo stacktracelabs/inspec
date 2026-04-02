@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 use League\Fractal\TransformerAbstract;
 use Symfony\Component\Yaml\Yaml;
 
-class Document
+class OpenAPIDocument
 {
     protected array $info = [];
 
@@ -779,8 +779,20 @@ class Document
     /**
      * Add registered route to the document.
      */
-    public function route(Route $route, RouteAttribute $description): static
+    public function route(Route $route, RouteAttribute $description, ?string $method = null): static
     {
+        if (! is_null($method)) {
+            $method = Str::lower($method);
+
+            if ($method === 'head' || $method === 'options') {
+                return $this;
+            }
+
+            $this->addRoute($route, $description, $method);
+
+            return $this;
+        }
+
         foreach ($route->methods() as $method) {
             $method = Str::lower($method);
 
