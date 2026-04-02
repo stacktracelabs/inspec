@@ -24,7 +24,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 ## Controller Rules
 - Prefer `summary` and `tags`. Use `tags` as a string or array.
 - Set `responseCode` explicitly for non-200 success responses, especially `201` for create endpoints.
-- Use `additionalResponses` for other status codes. Only `422` and `429` become the shared `ErrorResponse`; other codes are description-only responses.
+- Use `additionalResponses` for route-specific extra statuses or inferred-error overrides. Values may be `null`, plain strings, `Response` instances, or `Response` class strings.
 - Use `deprecated: true` for deprecated endpoints.
 - Use `multipart: true` when the endpoint is multipart even if no field uses the `file` type.
 - Do not rely on `description` yet. The attribute accepts it, but the generator does not emit it currently.
@@ -53,10 +53,12 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when the generated spec should opt out.
 - With Sanctum enabled, routes using `auth:sanctum` automatically receive `bearerAuth`; do not model that in the attribute.
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
-- A request body automatically adds a `422` response unless one is already present.
+- A request body automatically adds a `422` validation response unless `additionalResponses[422]` or API-level error-response configuration overrides it.
+- Routes with `throttle` middleware automatically add a `429` response unless `additionalResponses[429]` or API-level error-response configuration overrides it.
+- API-wide inferred error defaults live on `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()`.
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
 - API-wide pagination defaults live on `Api::withPagination()` and `Api::withCursorPagination()`.
-- Route-level paginator overrides are passed as `new PagePaginator(...)` or `new CursorPaginator(...)` constructor arguments inside the attribute.
+- Route-level paginator overrides are passed as `new LengthAwarePaginator(...)` or `new CursorPaginator(...)` constructor arguments inside the attribute.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.
 - Use `Api::prefix('api')` when Laravel routes live under `/api` but generated paths should omit that prefix.
 - When an API uses `prefix(...)`, match generated paths in `--path` filters, for example `^/users` instead of `^/api/users`.

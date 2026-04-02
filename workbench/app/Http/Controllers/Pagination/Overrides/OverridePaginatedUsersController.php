@@ -2,7 +2,7 @@
 
 namespace Workbench\App\Http\Controllers\Pagination\Overrides;
 
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use StackTrace\Inspec\Route;
 use Workbench\App\Transformers\UserTransformer;
 
@@ -12,7 +12,7 @@ class OverridePaginatedUsersController
         tags: 'Users',
         summary: 'Override paginated users',
         paginatedResponse: UserTransformer::class,
-        paginator: new PagePaginator(
+        paginator: new LengthAwarePaginator(
             name: 'OverridePagePaginator',
             object: [
                 'total:integer' => 'Total result count',

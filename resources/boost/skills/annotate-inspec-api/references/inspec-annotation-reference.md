@@ -46,12 +46,12 @@ Available arguments:
   Paginated `data` collection. In practice, use a transformer class string.
 - `cursorPaginatedResponse: array|string|null`
   Cursor-paginated `data` collection. In practice, use a transformer class string.
-- `paginator: ?PagePaginator`
+- `paginator: ?LengthAwarePaginator`
   Replaces the API-level page paginator definition for this route.
 - `responseCode: int`
   Status code for the primary success response. Defaults to `200`.
 - `additionalResponses: array`
-  Extra status codes. `422` and `429` become the shared `ErrorResponse`; other codes are description-only.
+  Extra status codes and inferred-error overrides. Values may be `null`, plain strings, `Response` instances, or `Response` class strings.
 - `cursorPaginator: ?CursorPaginator`
   Replaces the API-level cursor paginator definition for this route.
 - `deprecated: bool`
@@ -177,7 +177,7 @@ public function __invoke()
     ],
     additionalResponses: [
         401 => 'Unauthenticated',
-        422 => 'Validation failed',
+        422 => null,
     ],
 )]
 public function __invoke()
@@ -221,13 +221,13 @@ Use a transformer class as the value for a single object reference:
 ### Paginated responses
 
 ```php
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
 #[Route(
     tags: 'Users',
     summary: 'List users',
     paginatedResponse: UserTransformer::class,
-    paginator: new PagePaginator(
+    paginator: new LengthAwarePaginator(
         meta: [
             'filters' => [
                 'status?:string' => 'Applied status filter',
@@ -244,11 +244,11 @@ public function __invoke()
 
 Generated pagination parameter behavior:
 
-- `paginatedResponse` uses the active `PagePaginator` definition.
+- `paginatedResponse` uses the active `LengthAwarePaginator` definition.
 - `cursorPaginatedResponse` uses the active `CursorPaginator` definition.
 - Use `Api::withPagination()` and `Api::withCursorPagination()` for API-wide defaults.
 - Use `paginator` and `cursorPaginator` when a single route needs different pagination metadata or query parameters.
-- In PHP attributes, paginator overrides must be passed as constructor arguments like `new PagePaginator(...)`.
+- In PHP attributes, paginator overrides must be passed as constructor arguments like `new LengthAwarePaginator(...)`.
 
 ### Multipart uploads
 
@@ -323,9 +323,9 @@ Rules:
 - With Sanctum enabled, routes with `auth:sanctum` middleware automatically receive `security: [{ bearerAuth: [] }]`.
 - The generator registers the `bearerAuth` security scheme only when Sanctum is enabled and at least one included route actually uses it.
 - With broadcasting enabled, the registered Pusher-related broadcasting auth routes are auto-documented when present.
-- If a request body exists and no `422` response is defined, Inspec adds one automatically.
-- `422` and `429` entries in `additionalResponses` become the shared `ErrorResponse` component.
-- Other `additionalResponses` entries become description-only responses.
+- If a request body exists, Inspec infers a `422` validation response unless route-level or API-level configuration disables or replaces it.
+- If a route uses `throttle` middleware, Inspec infers a `429` too-many-requests response unless route-level or API-level configuration disables or replaces it.
+- `additionalResponses` accepts `null`, plain strings, `Response` instances, and `Response` class strings.
 - `paginatedResponse` and `cursorPaginatedResponse` are typed as `array|string|null`, but the current builder effectively supports transformer class strings only.
 - The route attribute's `description` is stored but not currently emitted into the OpenAPI operation.
 - Boolean fields never receive `nullable: true`, even when other field types would.

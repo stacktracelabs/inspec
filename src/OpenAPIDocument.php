@@ -10,6 +10,10 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use League\Fractal\TransformerAbstract;
+use StackTrace\Inspec\Paginators\CursorPaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\Responses\TooManyRequestsResponse;
+use StackTrace\Inspec\Responses\ValidationErrorResponse;
 use Symfony\Component\Yaml\Yaml;
 
 class OpenAPIDocument
@@ -36,14 +40,23 @@ class OpenAPIDocument
 
     protected bool $usesSanctumSecurity = false;
 
-    protected PagePaginator $pagination;
+    protected LengthAwarePaginator $pagination;
 
     protected CursorPaginator $cursorPagination;
 
+    /**
+     * @var array<int, Response|null>
+     */
+    protected array $errorResponses = [];
+
     public function __construct()
     {
-        $this->pagination = new PagePaginator();
+        $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
+        $this->errorResponses = [
+            422 => new ValidationErrorResponse(),
+            429 => new TooManyRequestsResponse(),
+        ];
     }
 
     public function securitySchema(string $name, string $type, string $scheme): static
@@ -95,7 +108,7 @@ class OpenAPIDocument
         return $this;
     }
 
-    public function withPagination(PagePaginator $pagination): static
+    public function withPagination(LengthAwarePaginator $pagination): static
     {
         $this->pagination = $pagination;
 
@@ -105,6 +118,42 @@ class OpenAPIDocument
     public function withCursorPagination(CursorPaginator $cursorPagination): static
     {
         $this->cursorPagination = $cursorPagination;
+
+        return $this;
+    }
+
+    public function withValidationErrorResponse(Response $response): static
+    {
+        return $this->withErrorResponse(422, $response);
+    }
+
+    public function withoutValidationErrorResponse(): static
+    {
+        return $this->withoutErrorResponse(422);
+    }
+
+    public function withTooManyRequestsResponse(Response $response): static
+    {
+        return $this->withErrorResponse(429, $response);
+    }
+
+    public function withoutTooManyRequestsResponse(): static
+    {
+        return $this->withoutErrorResponse(429);
+    }
+
+    public function withErrorResponse(int $code, Response $response): static
+    {
+        $this->assertSupportedErrorResponseCode($code);
+        $this->errorResponses[$code] = $response;
+
+        return $this;
+    }
+
+    public function withoutErrorResponse(int $code): static
+    {
+        $this->assertSupportedErrorResponseCode($code);
+        $this->errorResponses[$code] = null;
 
         return $this;
     }
@@ -527,7 +576,7 @@ class OpenAPIDocument
         return $items;
     }
 
-    protected function buildPaginatorResponse(array|string $def, PaginationDefinition $paginator): array
+    protected function buildPaginatorResponse(array|string $def, Paginator $paginator): array
     {
         $items = $this->resolvePaginatedItems($def);
         $properties = $this->paginatorMetaProperties($paginator);
@@ -554,7 +603,7 @@ class OpenAPIDocument
         ];
     }
 
-    protected function registerPaginatorSchema(PaginationDefinition $paginator): string
+    protected function registerPaginatorSchema(Paginator $paginator): string
     {
         $definition = $this->buildObject($paginator->object);
         $registered = $this->schemas[$paginator->name] ?? null;
@@ -568,7 +617,7 @@ class OpenAPIDocument
         return "#/components/schemas/{$paginator->name}";
     }
 
-    protected function paginatorMetaProperties(PaginationDefinition $paginator): array
+    protected function paginatorMetaProperties(Paginator $paginator): array
     {
         $properties = [
             $paginator->metaKey => [
@@ -608,6 +657,68 @@ class OpenAPIDocument
         }
 
         return $block;
+    }
+
+    protected function buildReusableResponseDefinition(Response $response): array
+    {
+        $definition = [
+            'description' => $response->description,
+        ];
+
+        if ($response->headers !== []) {
+            $definition['headers'] = $this->buildResponseHeaders($response->headers);
+        }
+
+        if (is_array($response->body)) {
+            $definition['content'] = [
+                $response->contentType => [
+                    'schema' => $this->buildObject($response->body),
+                ],
+            ];
+        }
+
+        return $definition;
+    }
+
+    protected function buildResponseHeaders(array $definition): array
+    {
+        $headers = [];
+
+        foreach ($definition as $name => $description) {
+            $prop = Property::compile($name);
+
+            $header = [
+                'schema' => [
+                    'type' => $prop->type,
+                ],
+            ];
+
+            if (is_string($description) && $description !== '') {
+                $header['description'] = $description;
+            }
+
+            if ($prop->isEnum()) {
+                $header['schema']['enum'] = $prop->enumCases();
+            }
+
+            $headers[$prop->name] = $header;
+        }
+
+        return $headers;
+    }
+
+    protected function registerReusableResponse(Response $response): string
+    {
+        $definition = $this->buildReusableResponseDefinition($response);
+        $registered = $this->responses[$response->name] ?? null;
+
+        if (is_array($registered) && $registered !== $definition) {
+            throw GeneratorException::withMessage("The response component [{$response->name}] is already registered with a different definition.");
+        }
+
+        $this->response($response->name, $definition);
+
+        return "#/components/responses/{$response->name}";
     }
 
     protected function addRoute(Route $route, RouteAttribute $description, string $method, ?string $path = null): static
@@ -681,35 +792,33 @@ class OpenAPIDocument
         }
 
         // Response
+        $responses = [];
+
         if (is_array($description->response) && !empty($description->response)) {
-            Arr::set($path, "responses.{$description->responseCode}", $this->buildResponse($description->response));
+            $responses[$description->responseCode] = $this->buildResponse($description->response);
         } else if ($description->paginatedResponse != null) {
-            Arr::set($path, "responses.{$description->responseCode}", $this->buildPaginatorResponse($description->paginatedResponse, $description->paginator ?? $this->pagination));
+            $responses[$description->responseCode] = $this->buildPaginatorResponse($description->paginatedResponse, $description->paginator ?? $this->pagination);
         } else if ($description->cursorPaginatedResponse != null) {
-            Arr::set($path, "responses.{$description->responseCode}", $this->buildPaginatorResponse($description->cursorPaginatedResponse, $description->cursorPaginator ?? $this->cursorPagination));
+            $responses[$description->responseCode] = $this->buildPaginatorResponse($description->cursorPaginatedResponse, $description->cursorPaginator ?? $this->cursorPagination);
         }
 
-        // Other responses
-        if (! empty($description->additionalResponses)) {
-            foreach ($description->additionalResponses as $code => $block) {
-                if ($code == 422 || $code == 429) {
-                    Arr::set($path, "responses.{$code}", [
-                        '$ref' => '#/components/responses/ErrorResponse',
-                    ]);
-                } else {
-                    Arr::set($path, "responses.{$code}", [
-                        'description' => $block,
-                    ]);
-                }
+        foreach ($this->buildInferredErrorResponses($description, $middleware) as $code => $response) {
+            $responses[$code] = $response;
+        }
+
+        foreach ($this->buildAdditionalResponses($description->additionalResponses) as $code => $response) {
+            if ($response === null) {
+                unset($responses[$code]);
+                continue;
             }
+
+            $responses[$code] = $response;
         }
 
-        // If request accepts some request body, we can assume that validation is done of that body,
-        // and 422 code may be returned when the provided payload is invalid.
-        if (is_array($description->request) && !empty($description->request) && !Arr::has($path, 'responses.422')) {
-            Arr::set($path, "responses.422", [
-                '$ref' => '#/components/responses/ErrorResponse',
-            ]);
+        $responses = $this->finalizeRouteResponses($responses);
+
+        if ($responses !== []) {
+            $path['responses'] = $responses;
         }
 
         $endpoint = [
@@ -721,6 +830,84 @@ class OpenAPIDocument
         $this->paths[] = $endpoint;
 
         return $this;
+    }
+
+    protected function buildInferredErrorResponses(RouteAttribute $description, Collection $middleware): array
+    {
+        $responses = [];
+
+        if (is_array($description->request) && ! empty($description->request)) {
+            $response = $this->errorResponses[422] ?? null;
+
+            if ($response instanceof Response) {
+                $responses[422] = $response;
+            }
+        }
+
+        if ($this->usesThrottleMiddleware($middleware)) {
+            $response = $this->errorResponses[429] ?? null;
+
+            if ($response instanceof Response) {
+                $responses[429] = $response;
+            }
+        }
+
+        return $responses;
+    }
+
+    protected function buildAdditionalResponses(array $definitions): array
+    {
+        $responses = [];
+
+        foreach ($definitions as $code => $definition) {
+            if ($definition === null) {
+                $responses[$code] = null;
+                continue;
+            }
+
+            if (is_string($definition) && class_exists($definition) && is_subclass_of($definition, Response::class)) {
+                $definition = new $definition();
+            }
+
+            if ($definition instanceof Response) {
+                $responses[$code] = $definition;
+                continue;
+            }
+
+            if (is_string($definition)) {
+                $responses[$code] = [
+                    'description' => $definition,
+                ];
+                continue;
+            }
+
+            throw GeneratorException::withMessage("The additional response [{$code}] must be null, a string, a Response instance, or a Response class string.");
+        }
+
+        return $responses;
+    }
+
+    protected function finalizeRouteResponses(array $responses): array
+    {
+        foreach ($responses as $code => $response) {
+            if (! ($response instanceof Response)) {
+                continue;
+            }
+
+            $responses[$code] = [
+                '$ref' => $this->registerReusableResponse($response),
+            ];
+        }
+
+        return $responses;
+    }
+
+    protected function usesThrottleMiddleware(Collection $middleware): bool
+    {
+        return $middleware->contains(function (mixed $definition) {
+            return is_string($definition)
+                && ($definition === 'throttle' || Str::startsWith($definition, 'throttle:'));
+        });
     }
 
     protected function buildPathParameters(array $definition): array
@@ -779,6 +966,13 @@ class OpenAPIDocument
 
         if ($description->cursorPaginator && ! $description->cursorPaginatedResponse) {
             throw GeneratorException::withMessage('The [cursorPaginator] override requires [cursorPaginatedResponse].');
+        }
+    }
+
+    protected function assertSupportedErrorResponseCode(int $code): void
+    {
+        if (! in_array($code, [422, 429], true)) {
+            throw GeneratorException::withMessage("The error response [{$code}] is not supported. Supported error responses are [422, 429].");
         }
     }
 

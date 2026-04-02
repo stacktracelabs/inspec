@@ -10,6 +10,10 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use StackTrace\Inspec\Paginators\CursorPaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\Responses\TooManyRequestsResponse;
+use StackTrace\Inspec\Responses\ValidationErrorResponse;
 use StackTrace\Inspec\Route as RouteAttribute;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
@@ -51,9 +55,14 @@ class Api
 
     protected string $prefix = '';
 
-    protected PagePaginator $pagination;
+    protected LengthAwarePaginator $pagination;
 
     protected CursorPaginator $cursorPagination;
+
+    /**
+     * @var array<int, Response|null>
+     */
+    protected array $errorResponses = [];
 
     public function __construct()
     {
@@ -61,8 +70,12 @@ class Api
         $this->servers = [
             'Local' => config('app.url', 'http://localhost'),
         ];
-        $this->pagination = new PagePaginator();
+        $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
+        $this->errorResponses = [
+            422 => new ValidationErrorResponse(),
+            429 => new TooManyRequestsResponse(),
+        ];
     }
 
     public function name(string $name): static
@@ -152,7 +165,7 @@ class Api
         return $this;
     }
 
-    public function withPagination(PagePaginator $pagination): static
+    public function withPagination(LengthAwarePaginator $pagination): static
     {
         $this->pagination = $pagination;
 
@@ -162,6 +175,42 @@ class Api
     public function withCursorPagination(CursorPaginator $pagination): static
     {
         $this->cursorPagination = $pagination;
+
+        return $this;
+    }
+
+    public function withValidationErrorResponse(Response $response): static
+    {
+        return $this->withErrorResponse(422, $response);
+    }
+
+    public function withoutValidationErrorResponse(): static
+    {
+        return $this->withoutErrorResponse(422);
+    }
+
+    public function withTooManyRequestsResponse(Response $response): static
+    {
+        return $this->withErrorResponse(429, $response);
+    }
+
+    public function withoutTooManyRequestsResponse(): static
+    {
+        return $this->withoutErrorResponse(429);
+    }
+
+    public function withErrorResponse(int $code, Response $response): static
+    {
+        $this->assertSupportedErrorResponseCode($code);
+        $this->errorResponses[$code] = $response;
+
+        return $this;
+    }
+
+    public function withoutErrorResponse(int $code): static
+    {
+        $this->assertSupportedErrorResponseCode($code);
+        $this->errorResponses[$code] = null;
 
         return $this;
     }
@@ -263,7 +312,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -314,7 +363,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -353,7 +402,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -392,7 +441,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -431,7 +480,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -470,7 +519,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -509,7 +558,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -559,6 +608,14 @@ class Api
         $document->withPagination($this->pagination);
         $document->withCursorPagination($this->cursorPagination);
 
+        foreach ($this->errorResponses as $code => $response) {
+            if ($response instanceof Response) {
+                $document->withErrorResponse($code, $response);
+            } else {
+                $document->withoutErrorResponse($code);
+            }
+        }
+
         if (! $this->sanctum) {
             $document->withoutSanctum();
         }
@@ -566,42 +623,6 @@ class Api
         $this->documentControllerRoutes($document);
         $this->documentManualRoutes($document);
         $this->documentBroadcastingRoutes($document);
-
-        $document->schema('Error', [
-            'type' => 'object',
-            'example' => [
-                'message' => 'The phone number has already been taken.',
-                'errors' => [
-                    'phone_number' => [
-                        'The phone number has already been taken.',
-                    ],
-                ],
-            ],
-            'properties' => [
-                'message' => [
-                    'type' => 'string',
-                    'description' => 'General error message',
-                ],
-                'errors' => [
-                    'type' => 'object',
-                ],
-            ],
-            'required' => [
-                'message',
-                'errors',
-            ],
-        ]);
-
-        $document->response('ErrorResponse', [
-            'description' => 'Error response',
-            'content' => [
-                'application/json' => [
-                    'schema' => [
-                        '$ref' => '#/components/schemas/Error',
-                    ],
-                ],
-            ],
-        ]);
 
         $document->info([
             'title' => $this->title,
@@ -920,7 +941,7 @@ class Api
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?PagePaginator $paginator = null,
+        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
         ?CursorPaginator $cursorPaginator = null,
@@ -944,5 +965,12 @@ class Api
             deprecated: $deprecated,
             multipart: $multipart,
         );
+    }
+
+    protected function assertSupportedErrorResponseCode(int $code): void
+    {
+        if (! in_array($code, [422, 429], true)) {
+            throw GeneratorException::withMessage("The error response [{$code}] is not supported. Supported error responses are [422, 429].");
+        }
     }
 }

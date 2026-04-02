@@ -2,7 +2,7 @@
 
 namespace Workbench\App\Http\Controllers\Pagination\Overrides;
 
-use StackTrace\Inspec\CursorPaginator;
+use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Route;
 use Workbench\App\Transformers\UserTransformer;
 

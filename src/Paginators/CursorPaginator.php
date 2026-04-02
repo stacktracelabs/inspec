@@ -1,10 +1,11 @@
 <?php
 
 
-namespace StackTrace\Inspec;
+namespace StackTrace\Inspec\Paginators;
 
+use StackTrace\Inspec\Paginator;
 
-class CursorPaginator extends PaginationDefinition
+class CursorPaginator extends Paginator
 {
     protected static function defaultName(): string
     {

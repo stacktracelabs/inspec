@@ -1,14 +1,15 @@
 <?php
 
 
-namespace StackTrace\Inspec;
+namespace StackTrace\Inspec\Paginators;
 
+use StackTrace\Inspec\Paginator;
 
-class PagePaginator extends PaginationDefinition
+class LengthAwarePaginator extends Paginator
 {
     protected static function defaultName(): string
     {
-        return 'Paginator';
+        return 'LengthAwarePaginator';
     }
 
     protected static function defaultObject(): array

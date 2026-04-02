@@ -1,9 +1,9 @@
 <?php
 
 use StackTrace\Inspec\Api;
-use StackTrace\Inspec\CursorPaginator;
 use StackTrace\Inspec\GeneratorException;
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\CursorPaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use Workbench\App\Transformers\UserTransformer;
 
 function operationParameters(array $document, string $path): array
@@ -34,8 +34,8 @@ test('it uses the built in page paginator definition', function () {
         ->and(array_keys($parameters))->toContain('query:limit', 'query:page')
         ->and($parameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 15')
         ->and($parameters['query:page']['description'])->toBe('The page number')
-        ->and($response['properties']['meta']['properties']['pagination']['$ref'])->toBe('#/components/schemas/Paginator')
-        ->and($document['components']['schemas']['Paginator']['properties'])->toHaveKeys([
+        ->and($response['properties']['meta']['properties']['pagination']['$ref'])->toBe('#/components/schemas/LengthAwarePaginator')
+        ->and($document['components']['schemas']['LengthAwarePaginator']['properties'])->toHaveKeys([
             'total',
             'count',
             'per_page',
@@ -80,7 +80,7 @@ test('it applies api wide paginator definitions', function () {
         ->prefix('api')
         ->withoutBroadcasting()
         ->withPagination(
-            (new PagePaginator())
+            (new LengthAwarePaginator())
                 ->withSchema('CustomPagePaginator', [
                     'total:integer' => 'Total results',
                     'last_page:integer' => 'Last page number',
@@ -141,7 +141,7 @@ test('it lets route overrides replace api wide paginator definitions', function 
         ->prefix('api')
         ->withoutBroadcasting()
         ->withPagination(
-            new PagePaginator(
+            new LengthAwarePaginator(
                 name: 'ApiWidePaginator',
                 metaKey: 'api_page',
                 defaultPerPage: 40,
@@ -218,7 +218,7 @@ test('it fails when paginator is used without paginatedResponse', function () {
             '/api/invalid-page-users',
             tags: 'Users',
             summary: 'Invalid paginator',
-            paginator: new PagePaginator(),
+            paginator: new LengthAwarePaginator(),
         )
         ->toOpenAPI()
         ->build())
@@ -246,7 +246,7 @@ test('it fails when paginator schema names collide with different definitions', 
         ->name('conflicting-paginators')
         ->prefix('api')
         ->withoutBroadcasting()
-        ->withPagination(new PagePaginator(
+        ->withPagination(new LengthAwarePaginator(
             name: 'SharedPaginator',
             object: [
                 'total:integer' => 'Total results',
@@ -263,7 +263,7 @@ test('it fails when paginator schema names collide with different definitions', 
             tags: 'Users',
             summary: 'Second paginator',
             paginatedResponse: UserTransformer::class,
-            paginator: new PagePaginator(
+            paginator: new LengthAwarePaginator(
                 name: 'SharedPaginator',
                 object: [
                     'count:integer' => 'Different paginator shape',

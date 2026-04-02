@@ -2,7 +2,7 @@
 
 namespace Workbench\App\Http\Controllers\Pagination\Invalid;
 
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use StackTrace\Inspec\Route;
 
 class InvalidPaginatorController
@@ -10,7 +10,7 @@ class InvalidPaginatorController
     #[Route(
         tags: 'Users',
         summary: 'Invalid paginator override',
-        paginator: new PagePaginator(),
+        paginator: new LengthAwarePaginator(),
     )]
     public function __invoke(): array
     {

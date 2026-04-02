@@ -15,6 +15,18 @@ Route::get('api/paginated-users', fn () => []);
 Route::get('api/cursor-users', fn () => []);
 Route::get('api/conflicting-paginator-one', fn () => []);
 Route::get('api/conflicting-paginator-two', fn () => []);
+Route::get('api/error-responses/plain', fn () => [
+    'status' => 'ok',
+]);
+Route::post('api/error-responses/request', fn () => [
+    'status' => 'accepted',
+]);
+Route::get('api/error-responses/throttled', fn () => [
+    'status' => 'ok',
+])->middleware('throttle:api');
+Route::post('api/error-responses/throttled-request', fn () => [
+    'status' => 'accepted',
+])->middleware('throttle:api');
 Route::get('api/override-page-users', OverridePaginatedUsersController::class);
 Route::get('api/override-cursor-users', OverrideCursorUsersController::class);
 Route::get('api/invalid-page-users', InvalidPaginatorController::class);

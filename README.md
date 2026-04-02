@@ -277,8 +277,11 @@ class CreateUserController
 Notes:
 
 - `responseCode` applies to the primary `response`, `paginatedResponse`, or `cursorPaginatedResponse`.
-- When a request body is present, Inspec automatically adds a `422` response unless you define one yourself.
-- `422` and `429` entries in `responses` are emitted as the shared `ErrorResponse` component. Other entries become description-only responses.
+- When a request body is present, Inspec automatically adds a `422` validation response unless `additionalResponses[422]` or API-level error-response configuration overrides it.
+- When a route uses `throttle` middleware, Inspec automatically adds a `429` too-many-requests response unless `additionalResponses[429]` or API-level error-response configuration overrides it.
+- `additionalResponses` accepts `null`, plain strings, `Response` instances, and `Response` class strings.
+- Use `422 => null` or `429 => null` to suppress an inferred error for a single route.
+- Use `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()` to configure the API-wide inferred error defaults.
 
 ### Paginated and cursor-paginated responses
 
@@ -290,9 +293,9 @@ Use transformer class strings for paginated responses.
 namespace App\OpenApi;
 
 use StackTrace\Inspec\Api;
-use StackTrace\Inspec\CursorPaginator;
+use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Documentation;
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
 class PublicApiDocumentation extends Documentation
 {
@@ -302,7 +305,7 @@ class PublicApiDocumentation extends Documentation
             ->name('public')
             ->prefix('api')
             ->withPagination(
-                (new PagePaginator())
+                (new LengthAwarePaginator())
                     ->withMeta([
                         'filters' => [
                             'status?:string' => 'Applied status filter',
@@ -327,7 +330,7 @@ class PublicApiDocumentation extends Documentation
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
-use StackTrace\Inspec\PagePaginator;
+use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use StackTrace\Inspec\Route;
 
 class ListUsersController
@@ -336,7 +339,7 @@ class ListUsersController
         tags: 'Users',
         summary: 'List users',
         paginatedResponse: UserTransformer::class,
-        paginator: new PagePaginator(
+        paginator: new LengthAwarePaginator(
             meta: [
                 'filters' => [
                     'status?:string' => 'Applied status filter',
@@ -358,7 +361,7 @@ class ListUsersController
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
-use StackTrace\Inspec\CursorPaginator;
+use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Route;
 
 class CursorUsersController
@@ -383,11 +386,11 @@ class CursorUsersController
 
 Pagination behavior:
 
-- `paginatedResponse` uses the active `PagePaginator` definition and adds its query parameters plus a paginated `meta` block.
+- `paginatedResponse` uses the active `LengthAwarePaginator` definition and adds its query parameters plus a paginated `meta` block.
 - `cursorPaginatedResponse` uses the active `CursorPaginator` definition and adds its query parameters plus a cursor `meta` block.
 - `Api::withPagination()` and `Api::withCursorPagination()` replace the API-wide defaults.
 - `paginator` and `cursorPaginator` replace the API defaults for a single route.
-- In PHP attributes, route-level paginator overrides must be passed as constructor arguments like `new PagePaginator(...)` or `new CursorPaginator(...)`.
+- In PHP attributes, route-level paginator overrides must be passed as constructor arguments like `new LengthAwarePaginator(...)` or `new CursorPaginator(...)`.
 - The built-in defaults still use `limit` + `page` with `meta.pagination`, and `limit` + `cursor` with `meta.cursor`.
 
 ### Multipart and file uploads

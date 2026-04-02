@@ -4,7 +4,7 @@
 namespace StackTrace\Inspec;
 
 
-abstract class PaginationDefinition
+abstract class Paginator
 {
     public readonly string $name;
 
