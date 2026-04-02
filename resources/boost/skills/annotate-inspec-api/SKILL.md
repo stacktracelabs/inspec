@@ -49,7 +49,9 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - `ExpandItem([A::class, B::class])` produces `allOf` under `data`.
 
 ## Current Behavior To Respect
-- Routes with `auth:sanctum` middleware automatically receive `bearerAuth`; do not model that in the attribute.
+- `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when the generated spec should opt out.
+- With Sanctum enabled, routes using `auth:sanctum` automatically receive `bearerAuth`; do not model that in the attribute.
+- With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
 - A request body automatically adds a `422` response unless one is already present.
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.

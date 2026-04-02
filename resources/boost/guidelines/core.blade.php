@@ -100,6 +100,8 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Use `paginatedResponse` or `cursorPaginatedResponse` with transformer class strings for paginated collections.
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.
-- Routes with `auth:sanctum` automatically receive bearer auth security in the generated spec.
+- `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when a spec should opt out.
+- With Sanctum enabled, only included routes that actually use `auth:sanctum` receive bearer auth security, and the `bearerAuth` scheme is registered only when needed.
+- With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
 - Use `Api::prefix(...)` only when you want to strip a real Laravel route prefix from generated operation paths. Server URLs stay exactly as authored.
 - Prefer `--stdout` plus `--api`, `--path`, `--route`, and `--method` when verifying changes so you do not rewrite generated files unnecessarily.

@@ -32,6 +32,10 @@ class OpenAPIDocument
 
     protected array $schemaStack = [];
 
+    protected bool $sanctum = true;
+
+    protected bool $usesSanctumSecurity = false;
+
     public function securitySchema(string $name, string $type, string $scheme): static
     {
         Arr::set($this->securitySchemas, $name, [
@@ -64,6 +68,26 @@ class OpenAPIDocument
         $this->info = $info;
 
         return $this;
+    }
+
+    public function withSanctum(): static
+    {
+        $this->sanctum = true;
+
+        return $this;
+    }
+
+    public function withoutSanctum(): static
+    {
+        $this->sanctum = false;
+        $this->usesSanctumSecurity = false;
+
+        return $this;
+    }
+
+    public function usesSanctumSecurity(): bool
+    {
+        return $this->usesSanctumSecurity;
     }
 
     public function tag(string $name): static
@@ -661,12 +685,13 @@ class OpenAPIDocument
 
         // Security
         $middleware = collect($route->gatherMiddleware());
-        if ($middleware->contains('auth:sanctum')) {
+        if ($this->sanctum && $middleware->contains('auth:sanctum')) {
             $path['security'] = [
                 [
                     'bearerAuth' => []
                 ]
             ];
+            $this->usesSanctumSecurity = true;
         }
 
         if ($description->cursorPaginatedResponse || $description->paginatedResponse) {

@@ -588,8 +588,22 @@ Transformer schema behavior:
 
 Some documentation is inferred from the resolved Laravel route rather than the attribute itself:
 
-- Routes with the `auth:sanctum` middleware receive `security: [{ bearerAuth: [] }]`.
-- The `bearerAuth` security scheme is registered automatically by `Api`.
+- `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` to opt out for a specific documentation class, and `withSanctum()` / `withBroadcasting()` to re-enable them explicitly.
+- When Sanctum is enabled, documented routes with the `auth:sanctum` middleware receive `security: [{ bearerAuth: [] }]`.
+- The `bearerAuth` security scheme is registered only when Sanctum is enabled and at least one included route actually uses `auth:sanctum`.
+- When broadcasting is enabled, `Api` automatically documents the registered Laravel broadcasting routes needed for Pusher connections:
+  - `/broadcasting/auth`
+  - `/broadcasting/user-auth`
+- Broadcasting auto-docs only appear when those real Laravel routes are actually registered, and they still respect `prefix()`, `filterPath()`, `filterRoute()`, `filterMethod()`, and the generate-command filters.
+
+Example:
+
+```php
+$api
+    ->prefix('api')
+    ->withoutBroadcasting()
+    ->withoutSanctum();
+```
 
 ## Current limitations
 

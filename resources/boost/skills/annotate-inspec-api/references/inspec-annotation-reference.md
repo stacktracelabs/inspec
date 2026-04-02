@@ -314,8 +314,10 @@ Rules:
 - `ExpandItem([A::class, B::class])` produces `allOf` under `data`.
 
 ## Generated behavior and caveats
-- Routes with `auth:sanctum` middleware automatically receive `security: [{ bearerAuth: [] }]`.
-- The generator automatically registers the `bearerAuth` security scheme.
+- `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` to opt out for a specific spec.
+- With Sanctum enabled, routes with `auth:sanctum` middleware automatically receive `security: [{ bearerAuth: [] }]`.
+- The generator registers the `bearerAuth` security scheme only when Sanctum is enabled and at least one included route actually uses it.
+- With broadcasting enabled, the registered Pusher-related broadcasting auth routes are auto-documented when present.
 - If a request body exists and no `422` response is defined, Inspec adds one automatically.
 - `422` and `429` entries in `additionalResponses` become the shared `ErrorResponse` component.
 - Other `additionalResponses` entries become description-only responses.

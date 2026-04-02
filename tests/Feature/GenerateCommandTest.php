@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\File;
 use Symfony\Component\Yaml\Yaml;
 use Workbench\App\OpenApi\AmbiguousWebhookDocumentation;
+use Workbench\App\OpenApi\BroadcastingDocumentation;
 use Workbench\App\OpenApi\ControllerDocumentation;
 use Workbench\App\OpenApi\DuplicatePublicDocumentation;
 use Workbench\App\OpenApi\FilteredRoutesDocumentation;
@@ -11,6 +12,8 @@ use Workbench\App\OpenApi\MissingNamedRouteDocumentation;
 use Workbench\App\OpenApi\MissingWebhookDocumentation;
 use Workbench\App\OpenApi\NamedWebhookDocumentation;
 use Workbench\App\OpenApi\NamelessDocumentation;
+use Workbench\App\OpenApi\WithoutBroadcastingDocumentation;
+use Workbench\App\OpenApi\WithoutSanctumDocumentation;
 
 afterEach(function () {
     File::deleteDirectory(base_path('inspec-tests'));
@@ -234,7 +237,132 @@ test('it documents a manually defined route and infers middleware-based security
             [
                 'bearerAuth' => [],
             ],
+        ])
+        ->and($document['components']['securitySchemes']['bearerAuth'])->toBe([
+            'type' => 'http',
+            'scheme' => 'bearer',
         ]);
+});
+
+test('it can opt out of sanctum security inference and bearer auth registration', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        WithoutSanctumDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/without-sanctum.yaml');
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain($output)
+        ->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect($document['paths']['/webhooks']['post']['summary'])->toBe('Receive webhooks without sanctum docs')
+        ->and($document['paths']['/webhooks']['post']['security'] ?? null)->toBeNull()
+        ->and($document['components']['securitySchemes']['bearerAuth'] ?? null)->toBeNull();
+});
+
+test('it auto-documents registered broadcasting routes by default', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        BroadcastingDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/broadcasting.yaml');
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain($output)
+        ->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toContain('/broadcasting/auth', '/broadcasting/user-auth')
+        ->and(array_keys($document['paths']))->not->toContain('/api/broadcasting/auth', '/api/broadcasting/user-auth')
+        ->and(array_keys($document['paths']['/broadcasting/auth']))->toBe(['get', 'post'])
+        ->and(array_keys($document['paths']['/broadcasting/user-auth']))->toBe(['get', 'post'])
+        ->and($document['paths']['/broadcasting/auth']['post']['summary'])->toBe('Authorize Websocket channel')
+        ->and($document['paths']['/broadcasting/user-auth']['post']['summary'])->toBe('Authenticate Websocket user')
+        ->and($document['paths']['/broadcasting/auth']['post']['security'])->toBe([
+            [
+                'bearerAuth' => [],
+            ],
+        ]);
+});
+
+test('it can opt out of broadcasting auto documentation', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        WithoutBroadcastingDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/without-broadcasting.yaml');
+
+    $this->artisan('inspec:generate')
+        ->expectsOutputToContain($output)
+        ->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/webhooks/prefixed'])
+        ->and($document['paths']['/broadcasting/auth'] ?? null)->toBeNull()
+        ->and($document['paths']['/broadcasting/user-auth'] ?? null)->toBeNull();
+});
+
+test('it filters auto documented broadcasting routes by cli path', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        BroadcastingDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/broadcasting.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'broadcasting',
+        '--path' => ['^/broadcasting/auth$'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/broadcasting/auth']);
+});
+
+test('it filters auto documented broadcasting routes by cli method', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        BroadcastingDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/broadcasting.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'broadcasting',
+        '--method' => ['get'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/broadcasting/auth', '/broadcasting/user-auth'])
+        ->and(array_keys($document['paths']['/broadcasting/auth']))->toBe(['get'])
+        ->and(array_keys($document['paths']['/broadcasting/user-auth']))->toBe(['get']);
+});
+
+test('it filters auto documented broadcasting routes by cli route name', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        BroadcastingDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/broadcasting.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'broadcasting',
+        '--route' => ['webhooks.named'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_key_exists('paths', $document))->toBeFalse();
 });
 
 test('it documents a named route using its real methods', function () {

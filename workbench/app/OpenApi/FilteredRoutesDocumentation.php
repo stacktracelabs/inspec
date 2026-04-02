@@ -15,6 +15,7 @@ class FilteredRoutesDocumentation extends Documentation
             ->name('filtered-routes')
             ->title('Filtered Routes API')
             ->prefix('api')
+            ->withoutBroadcasting()
             ->controllers(\Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'))
             ->post(
                 '/webhooks',

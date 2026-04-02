@@ -4,6 +4,7 @@
 namespace StackTrace\Inspec;
 
 
+use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Routing\Route as LaravelRoute;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -43,6 +44,10 @@ class Api
      * HTTP methods to document.
      */
     protected array $methodFilters = [];
+
+    protected bool $sanctum = true;
+
+    protected bool $broadcasting = true;
 
     protected string $prefix = '';
 
@@ -137,6 +142,34 @@ class Api
     public function prefix(string $prefix): static
     {
         $this->prefix = $this->normalizePrefix($prefix);
+
+        return $this;
+    }
+
+    public function withSanctum(): static
+    {
+        $this->sanctum = true;
+
+        return $this;
+    }
+
+    public function withoutSanctum(): static
+    {
+        $this->sanctum = false;
+
+        return $this;
+    }
+
+    public function withBroadcasting(): static
+    {
+        $this->broadcasting = true;
+
+        return $this;
+    }
+
+    public function withoutBroadcasting(): static
+    {
+        $this->broadcasting = false;
 
         return $this;
     }
@@ -504,8 +537,13 @@ class Api
 
         $document = new OpenAPIDocument();
 
+        if (! $this->sanctum) {
+            $document->withoutSanctum();
+        }
+
         $this->documentControllerRoutes($document);
         $this->documentManualRoutes($document);
+        $this->documentBroadcastingRoutes($document);
 
         $document->schema('Error', [
             'type' => 'object',
@@ -543,31 +581,6 @@ class Api
             ],
         ]);
 
-        $broadcastingRoute = collect(Route::getRoutes()->get())->firstWhere(fn (LaravelRoute $route) => $route->uri() === 'api/broadcasting/auth');
-        if ($broadcastingRoute && $this->matchesRouteFilters($broadcastingRoute)) {
-            $methods = $this->documentedMethodsForRoute($broadcastingRoute);
-
-            foreach ($methods as $method) {
-                $document->route(
-                    route: $broadcastingRoute,
-                    description: new RouteAttribute(
-                        tags: 'Broadcasting',
-                        summary: 'Authorize Websocket channel',
-                        request: [
-                            'socket_id:string' => 'The socket identifier',
-                            'channel_name:string' => 'The channel name',
-                        ],
-                        response: [
-                            'auth:string' => 'Auth token',
-                            'channel_data:string' => 'Double-encoded JSON containing channel information.',
-                        ],
-                    ),
-                    method: $method,
-                    path: $this->resolveDocumentPath($broadcastingRoute->uri()),
-                );
-            }
-        }
-
         $document->info([
             'title' => $this->title,
             'description' => $this->description,
@@ -578,7 +591,9 @@ class Api
             $document->server($name, $url);
         }
 
-        $document->securitySchema('bearerAuth', 'http', 'bearer');
+        if ($this->sanctum && $document->usesSanctumSecurity()) {
+            $document->securitySchema('bearerAuth', 'http', 'bearer');
+        }
 
         return $document;
     }
@@ -670,6 +685,34 @@ class Api
         }
     }
 
+    protected function documentBroadcastingRoutes(OpenAPIDocument $document): void
+    {
+        if (! $this->broadcasting) {
+            return;
+        }
+
+        foreach ($this->broadcastingRouteDefinitions() as $definition) {
+            $routes = collect(Route::getRoutes()->get())
+                ->filter(fn (LaravelRoute $route) => $this->routeAction($route) === $definition['action'])
+                ->values();
+
+            foreach ($routes as $route) {
+                if (! $this->matchesRouteFilters($route)) {
+                    continue;
+                }
+
+                foreach ($this->documentedMethodsForRoute($route) as $method) {
+                    $document->route(
+                        route: $route,
+                        description: $definition['description'],
+                        method: $method,
+                        path: $this->resolveDocumentPath($route->uri()),
+                    );
+                }
+            }
+        }
+    }
+
     protected function resolveRouteByName(string $name): LaravelRoute
     {
         $route = Route::getRoutes()->getByName($name);
@@ -704,6 +747,11 @@ class Api
     {
         return in_array($method, $route->methods(), true)
             && $this->normalizeLookupUri($route->uri()) === $uri;
+    }
+
+    protected function routeAction(LaravelRoute $route): string
+    {
+        return ltrim($route->getActionName(), '\\');
     }
 
     protected function normalizeLookupUri(string $uri): string
@@ -803,6 +851,41 @@ class Api
     protected function compilePathPattern(string $pattern): string
     {
         return '~'.str_replace('~', '\~', $pattern).'~u';
+    }
+
+    protected function broadcastingRouteDefinitions(): array
+    {
+        return [
+            [
+                'action' => BroadcastController::class.'@authenticate',
+                'description' => new RouteAttribute(
+                    tags: 'Broadcasting',
+                    summary: 'Authorize Websocket channel',
+                    request: [
+                        'socket_id:string' => 'The socket identifier',
+                        'channel_name:string' => 'The channel name',
+                    ],
+                    response: [
+                        'auth:string' => 'Auth token',
+                        'channel_data:string' => 'Double-encoded JSON containing channel information.',
+                    ],
+                ),
+            ],
+            [
+                'action' => BroadcastController::class.'@authenticateUser',
+                'description' => new RouteAttribute(
+                    tags: 'Broadcasting',
+                    summary: 'Authenticate Websocket user',
+                    request: [
+                        'socket_id:string' => 'The socket identifier',
+                    ],
+                    response: [
+                        'auth:string' => 'Auth token',
+                        'user_data:string' => 'Double-encoded JSON containing authenticated user information.',
+                    ],
+                ),
+            ],
+        ];
     }
 
     protected function buildRouteAttribute(

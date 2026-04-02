@@ -6,6 +6,7 @@ test('it strips an explicit prefix from controller paths and preserves literal s
     $document = (new Api())
         ->name('public')
         ->prefix('/api/')
+        ->withoutBroadcasting()
         ->servers([
             'Production' => 'https://api.example.com',
             'Local' => 'http://localhost:8000/api',
@@ -31,6 +32,7 @@ test('it strips an explicit prefix from controller paths and preserves literal s
 test('it keeps route prefixes when no api prefix is configured', function () {
     $document = (new Api())
         ->name('public')
+        ->withoutBroadcasting()
         ->controllers(\Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'))
         ->toOpenAPI()
         ->build();
@@ -43,6 +45,7 @@ test('it applies api path filters to canonical generated paths', function () {
     $document = (new Api())
         ->name('public')
         ->prefix('api')
+        ->withoutBroadcasting()
         ->controllers(\Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'))
         ->filterPath('^/spec-test$')
         ->toOpenAPI()
@@ -55,6 +58,7 @@ test('it strips the configured prefix from manually documented routes while reso
     $document = (new Api())
         ->name('prefixed-webhooks')
         ->prefix('api')
+        ->withoutBroadcasting()
         ->post(
             '/api/webhooks/prefixed',
             tags: 'Webhooks',
@@ -78,6 +82,7 @@ test('it strips prefixes only on full path segments', function () {
     $document = (new Api())
         ->name('segment-safe')
         ->prefix('api')
+        ->withoutBroadcasting()
         ->get(
             '/apiary/example',
             tags: 'Utilities',
