@@ -30,11 +30,21 @@ class Api
     protected array $manualRoutes = [];
 
     /**
-     * List of URLs to generate documentation for.
-     *
-     * Useful for debugging and developing.
+     * Regex patterns matched against generated OpenAPI paths.
      */
-    protected array $filter = [];
+    protected array $pathFilters = [];
+
+    /**
+     * Laravel route names to document.
+     */
+    protected array $routeFilters = [];
+
+    /**
+     * HTTP methods to document.
+     */
+    protected array $methodFilters = [];
+
+    protected string $openApiPrefix = 'api';
 
     public function __construct()
     {
@@ -124,12 +134,59 @@ class Api
         return $this;
     }
 
-    /**
-     * Filter the URLs for which will be documentation generated.
-     */
-    public function filter(string|array $urls): static
+    public function filter(string|array $patterns): static
     {
-        $this->filter = array_merge($this->filter, Arr::wrap($urls));
+        return $this->filterPath($patterns);
+    }
+
+    public function filterPath(string|array $patterns): static
+    {
+        $patterns = collect(Arr::wrap($patterns))
+            ->filter(fn (mixed $pattern) => is_string($pattern) && trim($pattern) !== '')
+            ->map(fn (string $pattern) => trim($pattern))
+            ->values()
+            ->all();
+
+        foreach ($patterns as $pattern) {
+            $this->assertValidPathPattern($pattern);
+        }
+
+        $this->pathFilters = array_values(array_unique([
+            ...$this->pathFilters,
+            ...$patterns,
+        ]));
+ 
+        return $this;
+    }
+
+    public function filterRoute(string|array $routes): static
+    {
+        $routes = collect(Arr::wrap($routes))
+            ->filter(fn (mixed $route) => is_string($route) && trim($route) !== '')
+            ->map(fn (string $route) => trim($route))
+            ->values()
+            ->all();
+
+        $this->routeFilters = array_values(array_unique([
+            ...$this->routeFilters,
+            ...$routes,
+        ]));
+
+        return $this;
+    }
+
+    public function filterMethod(string|array $methods): static
+    {
+        $methods = collect(Arr::wrap($methods))
+            ->filter(fn (mixed $method) => is_string($method) && trim($method) !== '')
+            ->map(fn (string $method) => Str::upper(trim($method)))
+            ->values()
+            ->all();
+
+        $this->methodFilters = array_values(array_unique([
+            ...$this->methodFilters,
+            ...$methods,
+        ]));
 
         return $this;
     }
@@ -430,18 +487,6 @@ class Api
         return $this;
     }
 
-    /**
-     * Determine if the route should be filtered out.
-     */
-    protected function shouldFilter(LaravelRoute $route): bool
-    {
-        if (! in_array($route->uri(), $this->filter, true)) {
-            return true;
-        }
-
-        return false;
-    }
-
     public function toOpenAPI(): OpenAPIDocument
     {
         if ($this->controllerPaths === [] && $this->manualRoutes === []) {
@@ -494,22 +539,27 @@ class Api
         ]);
 
         $broadcastingRoute = collect(Route::getRoutes()->get())->firstWhere(fn (LaravelRoute $route) => $route->uri() === 'api/broadcasting/auth');
-        if ($broadcastingRoute && (empty($this->filter) || ! $this->shouldFilter($broadcastingRoute))) {
-            $document->route(
-                route: $broadcastingRoute,
-                description: new RouteAttribute(
-                    tags: 'Broadcasting',
-                    summary: 'Authorize Websocket channel',
-                    request: [
-                        'socket_id:string' => 'The socket identifier',
-                        'channel_name:string' => 'The channel name',
-                    ],
-                    response: [
-                        'auth:string' => 'Auth token',
-                        'channel_data:string' => 'Double-encoded JSON containing channel information.',
-                    ],
-                ),
-            );
+        if ($broadcastingRoute && $this->matchesRouteFilters($broadcastingRoute)) {
+            $methods = $this->documentedMethodsForRoute($broadcastingRoute);
+
+            foreach ($methods as $method) {
+                $document->route(
+                    route: $broadcastingRoute,
+                    description: new RouteAttribute(
+                        tags: 'Broadcasting',
+                        summary: 'Authorize Websocket channel',
+                        request: [
+                            'socket_id:string' => 'The socket identifier',
+                            'channel_name:string' => 'The channel name',
+                        ],
+                        response: [
+                            'auth:string' => 'Auth token',
+                            'channel_data:string' => 'Double-encoded JSON containing channel information.',
+                        ],
+                    ),
+                    method: $method,
+                );
+            }
         }
 
         $document->info([
@@ -572,11 +622,15 @@ class Api
                     continue;
                 }
 
-                if (! empty($this->filter) && $this->shouldFilter($route)) {
+                if (! $this->matchesRouteFilters($route)) {
                     continue;
                 }
 
-                $document->route($route, $attribute->newInstance());
+                $description = $attribute->newInstance();
+
+                foreach ($this->documentedMethodsForRoute($route) as $method) {
+                    $document->route($route, $description, $method);
+                }
             }
         });
     }
@@ -589,18 +643,20 @@ class Api
             if ($manualRoute['type'] === 'name') {
                 $route = $this->resolveRouteByName($manualRoute['name']);
 
-                if (! empty($this->filter) && $this->shouldFilter($route)) {
+                if (! $this->matchesRouteFilters($route)) {
                     continue;
                 }
 
-                $document->route($route, $description);
+                foreach ($this->documentedMethodsForRoute($route) as $method) {
+                    $document->route($route, $description, $method);
+                }
 
                 continue;
             }
 
             $route = $this->resolveRouteByMethodAndUri($manualRoute['method'], $manualRoute['uri']);
 
-            if (! empty($this->filter) && $this->shouldFilter($route)) {
+            if (! $this->shouldDocumentRouteMethod($route, $manualRoute['method'])) {
                 continue;
             }
 
@@ -647,6 +703,79 @@ class Api
     protected function normalizeLookupUri(string $uri): string
     {
         return trim(trim($uri), '/');
+    }
+
+    protected function matchesRouteFilters(LaravelRoute $route): bool
+    {
+        if ($this->pathFilters !== []) {
+            $path = $this->resolveOpenApiPath($route->uri());
+
+            $matchesPath = collect($this->pathFilters)->contains(
+                fn (string $pattern) => @preg_match($this->compilePathPattern($pattern), $path) === 1
+            );
+
+            if (! $matchesPath) {
+                return false;
+            }
+        }
+
+        if ($this->routeFilters !== []) {
+            $name = $route->getName();
+
+            if (! is_string($name) || ! in_array($name, $this->routeFilters, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    protected function documentedMethodsForRoute(LaravelRoute $route): array
+    {
+        return collect($route->methods())
+            ->map(fn (string $method) => Str::upper($method))
+            ->reject(fn (string $method) => $method === 'HEAD' || $method === 'OPTIONS')
+            ->filter(fn (string $method) => $this->matchesMethodFilters($method))
+            ->values()
+            ->all();
+    }
+
+    protected function shouldDocumentRouteMethod(LaravelRoute $route, string $method): bool
+    {
+        return $this->matchesRouteFilters($route)
+            && $this->matchesMethodFilters($method);
+    }
+
+    protected function matchesMethodFilters(string $method): bool
+    {
+        $method = Str::upper($method);
+
+        if ($method === 'HEAD' || $method === 'OPTIONS') {
+            return false;
+        }
+
+        if ($this->methodFilters === []) {
+            return true;
+        }
+
+        return in_array($method, $this->methodFilters, true);
+    }
+
+    protected function resolveOpenApiPath(string $uri): string
+    {
+        return OpenAPIDocument::resolvePath($uri, $this->openApiPrefix);
+    }
+
+    protected function assertValidPathPattern(string $pattern): void
+    {
+        if (@preg_match($this->compilePathPattern($pattern), '') === false) {
+            throw GeneratorException::withMessage("The path filter [{$pattern}] is not a valid regex.");
+        }
+    }
+
+    protected function compilePathPattern(string $pattern): string
+    {
+        return '~'.str_replace('~', '\~', $pattern).'~u';
     }
 
     protected function buildRouteAttribute(

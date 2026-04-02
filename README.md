@@ -86,7 +86,15 @@ php artisan inspec:generate
 Or generate one configured API by its `name()`:
 
 ```bash
-php artisan inspec:generate public
+php artisan inspec:generate --api=public
+```
+
+Or verify a single documentation class without rewriting files:
+
+```bash
+php artisan inspec:generate --api=App\\OpenApi\\PublicApiDocumentation --stdout
+php artisan inspec:generate --api=public --stdout --path='^/users' --method=GET
+php artisan inspec:generate --api=public --stdout --route=users.show
 ```
 
 ## Documenting Existing Laravel Routes

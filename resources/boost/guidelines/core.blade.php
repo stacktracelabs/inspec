@@ -10,7 +10,7 @@
 - Inspec only documents annotated methods that are also registered Laravel routes. Invokable controllers use `__invoke`.
 - Put reusable response schemas on Fractal transformers with `#[StackTrace\Inspec\Schema(...)]` on `transform()`.
 - Annotate transformer `include*` methods with `#[ExpandItem]` or `#[ExpandCollection]` for expandable nested resources.
-- Configure package defaults in `config/inspec.php`. Important keys are `title`, `description`, `version`, `servers`, `paths`, and `output`.
+- Configure Inspec in `config/inspec.php`. Important keys are `docs` for documentation classes and `output` for generated file output.
 
 ### Common Workflow
 
@@ -70,11 +70,12 @@ class UserTransformer extends TransformerAbstract
 }
 ```
 
-4. Generate the spec:
+4. Verify generation with the bundled command:
 
 ```bash
 php artisan inspec:generate
-php artisan inspec:generate docs/openapi.yaml
+php artisan inspec:generate --api=App\\OpenApi\\PublicApiDocumentation --stdout
+php artisan inspec:generate --api=public --stdout --path='^/users' --method=GET
 ```
 
 ### Property DSL
@@ -98,3 +99,4 @@ php artisan inspec:generate docs/openapi.yaml
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.
 - Routes with `auth:sanctum` automatically receive bearer auth security in the generated spec.
+- Prefer `--stdout` plus `--api`, `--path`, `--route`, and `--method` when verifying changes so you do not rewrite generated files unnecessarily.

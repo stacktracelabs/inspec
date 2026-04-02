@@ -70,13 +70,18 @@ class OpenAPIDocument
         return $this;
     }
 
-    protected function resolveUrl(string $uri): string
+    public static function resolvePath(string $uri, string $prefix = ''): string
     {
-        $prefix = '/'.ltrim(Arr::get($this->options, 'prefix', ''), '/');
+        $prefix = '/'.ltrim($prefix, '/');
 
         $uri = '/'.ltrim($uri, '/');
 
         return '/'.ltrim(Str::replaceFirst($prefix, '', $uri), '/');
+    }
+
+    protected function resolveUrl(string $uri): string
+    {
+        return static::resolvePath($uri, Arr::get($this->options, 'prefix', ''));
     }
 
     public function tag(string $name): static

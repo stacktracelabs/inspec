@@ -18,7 +18,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
    - `response` for standard success bodies
    - `paginatedResponse` or `cursorPaginatedResponse` for transformer-backed collections
 4. If a response points to a Fractal transformer class, ensure its `transform()` method has `#[Schema(...)]`. If the transformer exposes includes, annotate `include*` methods with `#[ExpandItem]` or `#[ExpandCollection]`.
-5. Regenerate the spec with `php artisan inspec:generate` when available and spot-check the affected path in the YAML.
+5. Verify generation with `php artisan inspec:generate --stdout` when available. Prefer narrowing to the routes you touched with `--api`, `--path`, `--route`, and `--method` so you can inspect the generated YAML without rewriting files.
 
 ## Controller Rules
 - Prefer `summary` and `tags`. Use `tags` as a string or array.
@@ -54,6 +54,11 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.
 - The default generator strips a leading `/api` prefix from output paths.
+- Verification-first command examples:
+  - `php artisan inspec:generate --api=App\\OpenApi\\WebhookDocumentation --stdout`
+  - `php artisan inspec:generate --api=webhooks --stdout --path='^/webhooks' --method=POST`
+  - `php artisan inspec:generate --api=webhooks --stdout --route=webhooks.receive`
+- Avoid regenerating files on disk unless the user explicitly asked for the output files to be written.
 
 ## Reference
 Use `references/inspec-annotation-reference.md` for the full `#[Route]` argument guide, DSL syntax, context-specific marker semantics, transformer patterns, and current caveats.

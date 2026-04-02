@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\File;
 use Symfony\Component\Yaml\Yaml;
 use Workbench\App\OpenApi\AmbiguousWebhookDocumentation;
 use Workbench\App\OpenApi\ControllerDocumentation;
+use Workbench\App\OpenApi\DuplicatePublicDocumentation;
+use Workbench\App\OpenApi\FilteredRoutesDocumentation;
 use Workbench\App\OpenApi\ManualWebhookDocumentation;
 use Workbench\App\OpenApi\MissingNamedRouteDocumentation;
 use Workbench\App\OpenApi\MissingWebhookDocumentation;
@@ -50,7 +52,7 @@ test('it writes the spec for a documentation class that discovers controller rou
     expect($document['paths']['/spec-test']['get']['summary'])->toBe('Generate spec fixture');
 });
 
-test('it can generate only the selected api', function () {
+test('it can generate only the selected api name', function () {
     config()->set('inspec.output', 'inspec-tests/openapi');
     config()->set('inspec.docs', [
         ControllerDocumentation::class,
@@ -60,12 +62,155 @@ test('it can generate only the selected api', function () {
     $publicOutput = base_path('inspec-tests/openapi/public.yaml');
     $webhookOutput = base_path('inspec-tests/openapi/webhooks.yaml');
 
-    $this->artisan('inspec:generate', ['api' => 'webhooks'])
+    $this->artisan('inspec:generate', ['--api' => 'webhooks'])
         ->expectsOutputToContain($webhookOutput)
         ->assertSuccessful();
 
     expect(File::exists($webhookOutput))->toBeTrue()
         ->and(File::exists($publicOutput))->toBeFalse();
+});
+
+test('it can generate only the selected documentation class', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+        ManualWebhookDocumentation::class,
+    ]);
+
+    $publicOutput = base_path('inspec-tests/openapi/public.yaml');
+    $webhookOutput = base_path('inspec-tests/openapi/webhooks.yaml');
+
+    $this->artisan('inspec:generate', ['--api' => ManualWebhookDocumentation::class])
+        ->expectsOutputToContain($webhookOutput)
+        ->assertSuccessful();
+
+    expect(File::exists($webhookOutput))->toBeTrue()
+        ->and(File::exists($publicOutput))->toBeFalse();
+});
+
+test('it writes yaml to stdout without rewriting files', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/public.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'public',
+        '--stdout' => true,
+    ])
+        ->expectsOutputToContain('openapi: 3.0.0')
+        ->assertSuccessful();
+
+    expect(File::exists($output))->toBeFalse();
+});
+
+test('it fails when stdout would emit more than one spec', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+        ManualWebhookDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate', ['--stdout' => true])
+        ->expectsOutputToContain('The [--stdout] option requires exactly one matched API')
+        ->assertExitCode(1);
+
+    expect(File::exists(base_path('inspec-tests/openapi/public.yaml')))->toBeFalse()
+        ->and(File::exists(base_path('inspec-tests/openapi/webhooks.yaml')))->toBeFalse();
+});
+
+test('it filters routes by final openapi path', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        FilteredRoutesDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/filtered-routes.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'filtered-routes',
+        '--path' => ['^/spec-test$'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/spec-test']);
+});
+
+test('it filters routes by exact laravel route name', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        FilteredRoutesDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/filtered-routes.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'filtered-routes',
+        '--route' => ['webhooks.named'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/webhooks/named'])
+        ->and(array_keys($document['paths']['/webhooks/named']))->toBe(['get', 'post']);
+});
+
+test('it filters routes by method case-insensitively', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        FilteredRoutesDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/filtered-routes.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'filtered-routes',
+        '--method' => ['post'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/webhooks', '/webhooks/named'])
+        ->and(array_keys($document['paths']['/webhooks']))->toBe(['post'])
+        ->and(array_keys($document['paths']['/webhooks/named']))->toBe(['post']);
+});
+
+test('it combines repeated filters as or and filter families as and', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        FilteredRoutesDocumentation::class,
+    ]);
+
+    $output = base_path('inspec-tests/openapi/filtered-routes.yaml');
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'filtered-routes',
+        '--path' => ['^/webhooks$', '^/webhooks/named$'],
+        '--method' => ['GET', 'POST'],
+    ])->assertSuccessful();
+
+    $document = Yaml::parseFile($output);
+
+    expect(array_keys($document['paths']))->toBe(['/webhooks', '/webhooks/named'])
+        ->and(array_keys($document['paths']['/webhooks']))->toBe(['post'])
+        ->and(array_keys($document['paths']['/webhooks/named']))->toBe(['get', 'post']);
+});
+
+test('it fails when a path filter is not a valid regex', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate', [
+        '--api' => 'public',
+        '--path' => ['['],
+    ])
+        ->expectsOutputToContain('The path filter [[] is not a valid regex')
+        ->assertExitCode(1);
 });
 
 test('it documents a manually defined route and infers middleware-based security', function () {
@@ -118,6 +263,29 @@ test('it fails when documentation does not set an api name', function () {
 
     $this->artisan('inspec:generate')
         ->expectsOutputToContain('must define an API name')
+        ->assertExitCode(1);
+});
+
+test('it fails when the api selector does not match any configured api or documentation', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate', ['--api' => 'missing'])
+        ->expectsOutputToContain('did not match any configured API or documentation class')
+        ->assertExitCode(1);
+});
+
+test('it fails when the api selector is ambiguous', function () {
+    config()->set('inspec.output', 'inspec-tests/openapi');
+    config()->set('inspec.docs', [
+        ControllerDocumentation::class,
+        DuplicatePublicDocumentation::class,
+    ]);
+
+    $this->artisan('inspec:generate', ['--api' => 'public'])
+        ->expectsOutputToContain('The [--api] selector [public] is ambiguous')
         ->assertExitCode(1);
 });
 
