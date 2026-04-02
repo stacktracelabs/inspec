@@ -16,9 +16,10 @@ class ControllerDocumentation extends Documentation
             ->title('Public API')
             ->description('Generated from documentation class')
             ->version('2026.04.02')
+            ->prefix('api')
             ->servers([
                 'Production' => 'https://api.example.com',
-                'Local' => 'http://localhost:8000',
+                'Local' => 'http://localhost:8000/api',
             ])
             ->controllers(\Orchestra\Testbench\workbench_path('app/Http/Controllers/Api'));
     }

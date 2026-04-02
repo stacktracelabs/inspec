@@ -32,10 +32,6 @@ class OpenAPIDocument
 
     protected array $schemaStack = [];
 
-    public function __construct(
-        protected array $options = []
-    ) { }
-
     public function securitySchema(string $name, string $type, string $scheme): static
     {
         Arr::set($this->securitySchemas, $name, [
@@ -68,20 +64,6 @@ class OpenAPIDocument
         $this->info = $info;
 
         return $this;
-    }
-
-    public static function resolvePath(string $uri, string $prefix = ''): string
-    {
-        $prefix = '/'.ltrim($prefix, '/');
-
-        $uri = '/'.ltrim($uri, '/');
-
-        return '/'.ltrim(Str::replaceFirst($prefix, '', $uri), '/');
-    }
-
-    protected function resolveUrl(string $uri): string
-    {
-        return static::resolvePath($uri, Arr::get($this->options, 'prefix', ''));
     }
 
     public function tag(string $name): static
@@ -624,9 +606,9 @@ class OpenAPIDocument
         return $block;
     }
 
-    protected function addRoute(Route $route, RouteAttribute $description, string $method): static
+    protected function addRoute(Route $route, RouteAttribute $description, string $method, ?string $path = null): static
     {
-        $url = $this->resolveUrl($route->uri());
+        $url = $path ?: '/'.ltrim($route->uri(), '/');
 
         $path = ArrayBuilder::make()
             ->setUnlessEmpty('tags', $description->tags)
@@ -784,7 +766,7 @@ class OpenAPIDocument
     /**
      * Add registered route to the document.
      */
-    public function route(Route $route, RouteAttribute $description, ?string $method = null): static
+    public function route(Route $route, RouteAttribute $description, ?string $method = null, ?string $path = null): static
     {
         if (! is_null($method)) {
             $method = Str::lower($method);
@@ -793,7 +775,7 @@ class OpenAPIDocument
                 return $this;
             }
 
-            $this->addRoute($route, $description, $method);
+            $this->addRoute($route, $description, $method, $path);
 
             return $this;
         }
@@ -805,7 +787,7 @@ class OpenAPIDocument
                 continue;
             }
 
-            $this->addRoute($route, $description, $method);
+            $this->addRoute($route, $description, $method, $path);
         }
 
         return $this;

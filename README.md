@@ -27,9 +27,10 @@ class PublicApiDocumentation extends Documentation
             ->title('Example API')
             ->description('Public API documentation')
             ->version('1.0.0')
+            ->prefix('api')
             ->servers([
                 'Production' => 'https://api.example.com',
-                'Local' => 'http://localhost:8000',
+                'Local' => 'http://localhost:8000/api',
             ])
             ->controllers(app_path('Http/Controllers/Api'))
             ->post(
@@ -62,7 +63,8 @@ Generation currently works like this:
 - `Api` can also document existing Laravel routes directly with helpers like `post('/webhooks', ...)` or `route('webhooks.receive', ...)`.
 - Invokable controllers are supported through `__invoke`.
 - Transformer schemas are collected from `#[Schema(...)]` on the transformer's `transform()` method.
-- The bundled builder initializes `OpenAPIDocument` with the `api` prefix, so generated paths strip a leading `/api`.
+- Call `->prefix('api')` when Laravel routes are registered under `/api` but you want generated paths like `/users` instead of `/api/users`.
+- Path filters always match the final generated path, so with `->prefix('api')` you should filter with `^/users`, not `^/api/users`.
 
 ## Generate Command
 
@@ -96,6 +98,8 @@ php artisan inspec:generate --api=App\\OpenApi\\PublicApiDocumentation --stdout
 php artisan inspec:generate --api=public --stdout --path='^/users' --method=GET
 php artisan inspec:generate --api=public --stdout --route=users.show
 ```
+
+The `--path` option matches the final generated path after any `Api::prefix(...)` stripping.
 
 ## Documenting Existing Laravel Routes
 
@@ -139,6 +143,14 @@ class WebhookDocumentation extends Documentation
 ```
 
 Both helpers resolve a real Laravel route before documenting it. If the route does not exist, or if a method/path match is ambiguous, generation fails.
+
+If Laravel registers a real route as `/api/webhooks` but you want the generated OpenAPI path to be `/webhooks`, configure `->prefix('api')` and still reference the real Laravel URI in the helper:
+
+```php
+$api
+    ->prefix('api')
+    ->post('/api/webhooks', ...);
+```
 
 ## Annotating controller routes
 

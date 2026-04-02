@@ -78,6 +78,8 @@ php artisan inspec:generate --api=App\\OpenApi\\PublicApiDocumentation --stdout
 php artisan inspec:generate --api=public --stdout --path='^/users' --method=GET
 ```
 
+If a documentation uses `->prefix('api')`, keep using canonical generated paths in filters like `--path='^/users'`, not Laravel route paths like `--path='^/api/users'`.
+
 ### Property DSL
 
 - Use `name[?][!]:type[,typeArg...][|modifier:arg[,arg...]]`.
@@ -99,4 +101,5 @@ php artisan inspec:generate --api=public --stdout --path='^/users' --method=GET
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.
 - Routes with `auth:sanctum` automatically receive bearer auth security in the generated spec.
+- Use `Api::prefix(...)` only when you want to strip a real Laravel route prefix from generated operation paths. Server URLs stay exactly as authored.
 - Prefer `--stdout` plus `--api`, `--path`, `--route`, and `--method` when verifying changes so you do not rewrite generated files unnecessarily.

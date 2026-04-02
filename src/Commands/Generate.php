@@ -16,7 +16,7 @@ class Generate extends Command
     protected $signature = 'inspec:generate
         {--api= : Generate one configured API by its name or documentation class}
         {--stdout : Write the generated YAML to standard output instead of a file}
-        {--path=* : Regex filter for generated OpenAPI paths}
+        {--path=* : Regex filter for final generated paths after any Api prefix stripping}
         {--route=* : Exact Laravel route-name filter}
         {--method=* : HTTP method filter}';
 

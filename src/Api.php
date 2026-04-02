@@ -44,7 +44,7 @@ class Api
      */
     protected array $methodFilters = [];
 
-    protected string $openApiPrefix = 'api';
+    protected string $prefix = '';
 
     public function __construct()
     {
@@ -130,6 +130,13 @@ class Api
                 ->map(fn (string $path) => trim($path))
                 ->all(),
         ]));
+
+        return $this;
+    }
+
+    public function prefix(string $prefix): static
+    {
+        $this->prefix = $this->normalizePrefix($prefix);
 
         return $this;
     }
@@ -495,9 +502,7 @@ class Api
 
         $this->assertControllerPathsExist();
 
-        $document = new OpenAPIDocument(options: [
-            'prefix' => 'api',
-        ]);
+        $document = new OpenAPIDocument();
 
         $this->documentControllerRoutes($document);
         $this->documentManualRoutes($document);
@@ -558,6 +563,7 @@ class Api
                         ],
                     ),
                     method: $method,
+                    path: $this->resolveDocumentPath($broadcastingRoute->uri()),
                 );
             }
         }
@@ -629,7 +635,7 @@ class Api
                 $description = $attribute->newInstance();
 
                 foreach ($this->documentedMethodsForRoute($route) as $method) {
-                    $document->route($route, $description, $method);
+                    $document->route($route, $description, $method, $this->resolveDocumentPath($route->uri()));
                 }
             }
         });
@@ -648,7 +654,7 @@ class Api
                 }
 
                 foreach ($this->documentedMethodsForRoute($route) as $method) {
-                    $document->route($route, $description, $method);
+                    $document->route($route, $description, $method, $this->resolveDocumentPath($route->uri()));
                 }
 
                 continue;
@@ -660,7 +666,7 @@ class Api
                 continue;
             }
 
-            $document->route($route, $description, $manualRoute['method']);
+            $document->route($route, $description, $manualRoute['method'], $this->resolveDocumentPath($route->uri()));
         }
     }
 
@@ -708,7 +714,7 @@ class Api
     protected function matchesRouteFilters(LaravelRoute $route): bool
     {
         if ($this->pathFilters !== []) {
-            $path = $this->resolveOpenApiPath($route->uri());
+            $path = $this->resolveDocumentPath($route->uri());
 
             $matchesPath = collect($this->pathFilters)->contains(
                 fn (string $pattern) => @preg_match($this->compilePathPattern($pattern), $path) === 1
@@ -761,9 +767,30 @@ class Api
         return in_array($method, $this->methodFilters, true);
     }
 
-    protected function resolveOpenApiPath(string $uri): string
+    protected function resolveDocumentPath(string $uri): string
     {
-        return OpenAPIDocument::resolvePath($uri, $this->openApiPrefix);
+        $uri = $this->normalizeLookupUri($uri);
+
+        if ($uri === '') {
+            return '/';
+        }
+
+        if ($this->prefix !== '') {
+            if ($uri === $this->prefix) {
+                return '/';
+            }
+
+            if (Str::startsWith($uri, $this->prefix.'/')) {
+                $uri = Str::after($uri, $this->prefix.'/');
+            }
+        }
+
+        return '/'.$uri;
+    }
+
+    protected function normalizePrefix(string $prefix): string
+    {
+        return $this->normalizeLookupUri($prefix);
     }
 
     protected function assertValidPathPattern(string $pattern): void

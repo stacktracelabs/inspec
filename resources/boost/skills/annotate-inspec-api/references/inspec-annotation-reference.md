@@ -322,4 +322,5 @@ Rules:
 - `paginatedResponse` and `cursorPaginatedResponse` are typed as `array|string|null`, but the current builder effectively supports transformer class strings only.
 - The route attribute's `description` is stored but not currently emitted into the OpenAPI operation.
 - Boolean fields never receive `nullable: true`, even when other field types would.
-- The default generator strips a leading `/api` prefix from output paths.
+- Generated paths only strip a Laravel route prefix when the documentation explicitly calls `Api::prefix(...)`.
+- Path filters and `inspec:generate --path=...` always match the final generated path after any configured prefix stripping.

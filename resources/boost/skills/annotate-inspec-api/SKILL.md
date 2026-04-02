@@ -53,7 +53,8 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - A request body automatically adds a `422` response unless one is already present.
 - `paginatedResponse` and `cursorPaginatedResponse` currently work with transformer class strings, not inline object arrays.
 - Request and response requiredness is not fully represented as OpenAPI `required` arrays yet, so keep the DSL truthful to app behavior but expect that limitation.
-- The default generator strips a leading `/api` prefix from output paths.
+- Use `Api::prefix('api')` when Laravel routes live under `/api` but generated paths should omit that prefix.
+- When an API uses `prefix(...)`, match generated paths in `--path` filters, for example `^/users` instead of `^/api/users`.
 - Verification-first command examples:
   - `php artisan inspec:generate --api=App\\OpenApi\\WebhookDocumentation --stdout`
   - `php artisan inspec:generate --api=webhooks --stdout --path='^/webhooks' --method=POST`

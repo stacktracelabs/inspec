@@ -44,7 +44,7 @@ test('it writes the spec for a documentation class that discovers controller rou
             'description' => 'Production',
         ],
         [
-            'url' => 'http://localhost:8000',
+            'url' => 'http://localhost:8000/api',
             'description' => 'Local',
         ],
     ]);
