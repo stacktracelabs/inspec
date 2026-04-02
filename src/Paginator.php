@@ -18,6 +18,12 @@ abstract class Paginator
 
     public readonly ?int $perPageDefault;
 
+    public readonly string $responseDescription;
+
+    public readonly string $responseContentType;
+
+    public readonly array $responseHeaders;
+
     final public function __construct(
         ?string $name = null,
         ?array $object = null,
@@ -25,9 +31,15 @@ abstract class Paginator
         ?string $metaKey = null,
         array $meta = [],
         ?int $defaultPerPage = null,
+        ?string $responseDescription = null,
+        ?string $responseContentType = null,
+        array $responseHeaders = [],
     ) {
         $this->name = trim($name ?? static::defaultName());
         $this->metaKey = trim($metaKey ?? static::defaultMetaKey());
+        $this->responseDescription = trim($responseDescription ?? static::defaultResponseDescription());
+        $this->responseContentType = trim($responseContentType ?? static::defaultResponseContentType());
+        $this->responseHeaders = $responseHeaders === [] ? static::defaultResponseHeaders() : $responseHeaders;
 
         if ($this->name === '') {
             throw GeneratorException::withMessage('The pagination schema name cannot be empty.');
@@ -35,6 +47,14 @@ abstract class Paginator
 
         if ($this->metaKey === '') {
             throw GeneratorException::withMessage('The pagination meta key cannot be empty.');
+        }
+
+        if ($this->responseDescription === '') {
+            throw GeneratorException::withMessage('The pagination response description cannot be empty.');
+        }
+
+        if ($this->responseContentType === '') {
+            throw GeneratorException::withMessage('The pagination response content type cannot be empty.');
         }
 
         $this->object = $object ?? static::defaultObject();
@@ -60,6 +80,9 @@ abstract class Paginator
             metaKey: $this->metaKey,
             meta: $this->meta,
             defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
         );
     }
 
@@ -72,6 +95,9 @@ abstract class Paginator
             metaKey: $this->metaKey,
             meta: $this->meta,
             defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
         );
     }
 
@@ -84,6 +110,9 @@ abstract class Paginator
             metaKey: $metaKey,
             meta: $this->meta,
             defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
         );
     }
 
@@ -96,6 +125,9 @@ abstract class Paginator
             metaKey: $this->metaKey,
             meta: array_replace_recursive($this->meta, $meta),
             defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
         );
     }
 
@@ -108,6 +140,64 @@ abstract class Paginator
             metaKey: $this->metaKey,
             meta: $this->meta,
             defaultPerPage: $defaultPerPage,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
+        );
+    }
+
+    public function withResponseDescription(string $description): static
+    {
+        return new static(
+            name: $this->name,
+            object: $this->object,
+            query: $this->query,
+            metaKey: $this->metaKey,
+            meta: $this->meta,
+            defaultPerPage: $this->perPageDefault,
+            responseDescription: $description,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $this->responseHeaders,
+        );
+    }
+
+    public function withResponseContentType(string $contentType): static
+    {
+        return new static(
+            name: $this->name,
+            object: $this->object,
+            query: $this->query,
+            metaKey: $this->metaKey,
+            meta: $this->meta,
+            defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $contentType,
+            responseHeaders: $this->responseHeaders,
+        );
+    }
+
+    public function withResponseHeaders(array $headers): static
+    {
+        return new static(
+            name: $this->name,
+            object: $this->object,
+            query: $this->query,
+            metaKey: $this->metaKey,
+            meta: $this->meta,
+            defaultPerPage: $this->perPageDefault,
+            responseDescription: $this->responseDescription,
+            responseContentType: $this->responseContentType,
+            responseHeaders: $headers,
+        );
+    }
+
+    public function buildResponse(array $items, array $metaProperties): Response
+    {
+        return new Response(
+            description: $this->responseDescription,
+            contentType: $this->responseContentType,
+            body: $this->buildResponseBody($items, $metaProperties),
+            headers: $this->responseHeaders,
         );
     }
 
@@ -139,4 +229,21 @@ abstract class Paginator
     abstract protected static function defaultQuery(?int $defaultPerPage): array;
 
     abstract protected static function defaultMetaKey(): string;
+
+    protected static function defaultResponseDescription(): string
+    {
+        return 'Successful response';
+    }
+
+    protected static function defaultResponseContentType(): string
+    {
+        return 'application/json';
+    }
+
+    protected static function defaultResponseHeaders(): array
+    {
+        return [];
+    }
+
+    abstract protected function buildResponseBody(array $items, array $metaProperties): ?array;
 }

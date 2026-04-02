@@ -34,4 +34,21 @@ class CursorPaginator extends Paginator
     {
         return 'cursor';
     }
+
+    protected function buildResponseBody(array $items, array $metaProperties): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'data' => [
+                    'type' => 'array',
+                    'items' => $items,
+                ],
+                'meta' => [
+                    'type' => 'object',
+                    'properties' => $metaProperties,
+                ],
+            ],
+        ];
+    }
 }

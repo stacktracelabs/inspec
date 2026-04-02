@@ -4,10 +4,6 @@ use Illuminate\Broadcasting\BroadcastController;
 use Illuminate\Support\Facades\Route;
 use Workbench\App\Http\Controllers\Admin\GenerateAdminSpecController;
 use Workbench\App\Http\Controllers\Api\GenerateSpecController;
-use Workbench\App\Http\Controllers\Pagination\Invalid\InvalidCursorPaginatorController;
-use Workbench\App\Http\Controllers\Pagination\Invalid\InvalidPaginatorController;
-use Workbench\App\Http\Controllers\Pagination\Overrides\OverrideCursorUsersController;
-use Workbench\App\Http\Controllers\Pagination\Overrides\OverridePaginatedUsersController;
 
 Route::get('api/spec-test', GenerateSpecController::class);
 Route::get('api/admin/spec-test', GenerateAdminSpecController::class);
@@ -27,10 +23,6 @@ Route::get('api/error-responses/throttled', fn () => [
 Route::post('api/error-responses/throttled-request', fn () => [
     'status' => 'accepted',
 ])->middleware('throttle:api');
-Route::get('api/override-page-users', OverridePaginatedUsersController::class);
-Route::get('api/override-cursor-users', OverrideCursorUsersController::class);
-Route::get('api/invalid-page-users', InvalidPaginatorController::class);
-Route::get('api/invalid-cursor-users', InvalidCursorPaginatorController::class);
 Route::prefix('api')->middleware('auth:sanctum')->group(function () {
     Route::match(['GET', 'POST'], 'broadcasting/auth', [BroadcastController::class, 'authenticate']);
     Route::match(['GET', 'POST'], 'broadcasting/user-auth', [BroadcastController::class, 'authenticateUser']);

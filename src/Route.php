@@ -6,8 +6,6 @@ namespace StackTrace\Inspec;
 
 use Attribute;
 use Illuminate\Support\Arr;
-use StackTrace\Inspec\Paginators\CursorPaginator;
-use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
 #[Attribute]
 readonly class Route
@@ -24,10 +22,8 @@ readonly class Route
      * @param array|null $response Primary success response body.
      * @param array|string|null $paginatedResponse Paginated `data` collection backed by a transformer class.
      * @param array|string|null $cursorPaginatedResponse Cursor-paginated `data` collection backed by a transformer class.
-     * @param LengthAwarePaginator|null $paginator Page-based pagination definition override.
      * @param int $responseCode Status code for the primary success response.
      * @param array $additionalResponses Additional response codes. Values may be null, strings, or Response definitions.
-     * @param CursorPaginator|null $cursorPaginator Cursor-based pagination definition override.
      * @param bool $deprecated Marks the endpoint as deprecated.
      * @param bool $multipart Forces `multipart/form-data` even without `file` fields.
      */
@@ -41,10 +37,8 @@ readonly class Route
         public ?array            $response = null,
         public array|string|null $paginatedResponse = null,
         public array|string|null $cursorPaginatedResponse = null,
-        public ?LengthAwarePaginator $paginator = null,
         public int               $responseCode = 200,
         public array             $additionalResponses = [],
-        public ?CursorPaginator  $cursorPaginator = null,
         public bool              $deprecated = false,
         public bool              $multipart = false,
     ) {

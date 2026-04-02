@@ -46,14 +46,10 @@ Available arguments:
   Paginated `data` collection. In practice, use a transformer class string.
 - `cursorPaginatedResponse: array|string|null`
   Cursor-paginated `data` collection. In practice, use a transformer class string.
-- `paginator: ?LengthAwarePaginator`
-  Replaces the API-level page paginator definition for this route.
 - `responseCode: int`
   Status code for the primary success response. Defaults to `200`.
 - `additionalResponses: array`
   Extra status codes and inferred-error overrides. Values may be `null`, plain strings, `Response` instances, or `Response` class strings.
-- `cursorPaginator: ?CursorPaginator`
-  Replaces the API-level cursor paginator definition for this route.
 - `deprecated: bool`
   Marks the operation as deprecated.
 - `multipart: bool`
@@ -244,18 +240,35 @@ Use a transformer class as the value for a single object reference:
 ```php
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
+class WrappedPaginator extends LengthAwarePaginator
+{
+    protected static function defaultResponseDescription(): string
+    {
+        return 'Successful response';
+    }
+
+    protected function buildResponseBody(array $items, array $metaProperties): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'results' => [
+                    'type' => 'array',
+                    'items' => $items,
+                ],
+                'page' => [
+                    'type' => 'object',
+                    'properties' => $metaProperties,
+                ],
+            ],
+        ];
+    }
+}
+
 #[Route(
     tags: 'Users',
     summary: 'List users',
     paginatedResponse: UserTransformer::class,
-    paginator: new LengthAwarePaginator(
-        meta: [
-            'filters' => [
-                'status?:string' => 'Applied status filter',
-            ],
-        ],
-        defaultPerPage: 50,
-    ),
 )]
 public function __invoke()
 {
@@ -263,13 +276,15 @@ public function __invoke()
 }
 ```
 
+Register custom paginator subclasses on the `Api` builder with `Api::withPagination(new WrappedPaginator())` or `Api::withCursorPagination(...)`.
+
 Generated pagination parameter behavior:
 
 - `paginatedResponse` uses the active `LengthAwarePaginator` definition.
 - `cursorPaginatedResponse` uses the active `CursorPaginator` definition.
 - Use `Api::withPagination()` and `Api::withCursorPagination()` for API-wide defaults.
-- Use `paginator` and `cursorPaginator` when a single route needs different pagination metadata or query parameters.
-- In PHP attributes, paginator overrides must be passed as constructor arguments like `new LengthAwarePaginator(...)`.
+- The paginator owns query params, paginator schema/meta, and the generated paginated success response.
+- When the paginated success envelope should change, use a custom paginator subclass or paginator response-metadata helpers on the API-level paginator definition.
 
 ### Multipart uploads
 

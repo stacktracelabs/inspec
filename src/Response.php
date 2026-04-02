@@ -4,9 +4,9 @@
 namespace StackTrace\Inspec;
 
 
-abstract class Response
+class Response
 {
-    public readonly string $name;
+    public readonly ?string $name;
 
     public readonly string $description;
 
@@ -23,15 +23,12 @@ abstract class Response
         ?array $body = null,
         array $headers = [],
     ) {
-        $this->name = trim($name ?? static::defaultName());
+        $name = trim($name ?? static::defaultName());
+        $this->name = $name === '' ? null : $name;
         $this->description = trim($description ?? static::defaultDescription());
         $this->contentType = trim($contentType ?? static::defaultContentType());
         $this->body = $body ?? static::defaultBody();
         $this->headers = $headers === [] ? static::defaultHeaders() : $headers;
-
-        if ($this->name === '') {
-            throw GeneratorException::withMessage('The response component name cannot be empty.');
-        }
 
         if ($this->description === '') {
             throw GeneratorException::withMessage('The response description cannot be empty.');
@@ -47,7 +44,7 @@ abstract class Response
         return new static();
     }
 
-    public function withName(string $name): static
+    public function withName(?string $name): static
     {
         return new static(
             name: $name,
@@ -102,13 +99,25 @@ abstract class Response
         );
     }
 
-    abstract protected static function defaultName(): string;
+    protected static function defaultName(): string
+    {
+        return '';
+    }
 
-    abstract protected static function defaultDescription(): string;
+    protected static function defaultDescription(): string
+    {
+        return '';
+    }
 
-    abstract protected static function defaultContentType(): string;
+    protected static function defaultContentType(): string
+    {
+        return 'application/json';
+    }
 
-    abstract protected static function defaultBody(): ?array;
+    protected static function defaultBody(): ?array
+    {
+        return null;
+    }
 
     protected static function defaultHeaders(): array
     {

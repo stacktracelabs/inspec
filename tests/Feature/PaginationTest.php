@@ -6,6 +6,58 @@ use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use Workbench\App\Transformers\UserTransformer;
 
+class ApiWidePagePaginator extends LengthAwarePaginator
+{
+    protected static function defaultResponseDescription(): string
+    {
+        return 'API-wide page response';
+    }
+
+    protected function buildResponseBody(array $items, array $metaProperties): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'items' => [
+                    'type' => 'array',
+                    'items' => $items,
+                ],
+                'page' => [
+                    'type' => 'object',
+                    'description' => 'Wrapped '.$this->name,
+                    'properties' => $metaProperties,
+                ],
+            ],
+        ];
+    }
+}
+
+class ApiWideCursorPaginator extends CursorPaginator
+{
+    protected static function defaultResponseDescription(): string
+    {
+        return 'API-wide cursor response';
+    }
+
+    protected function buildResponseBody(array $items, array $metaProperties): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'results' => [
+                    'type' => 'array',
+                    'items' => $items,
+                ],
+                'cursor_state' => [
+                    'type' => 'object',
+                    'description' => 'Wrapped '.$this->name,
+                    'properties' => $metaProperties,
+                ],
+            ],
+        ];
+    }
+}
+
 function operationParameters(array $document, string $path): array
 {
     return collect($document['paths'][$path]['get']['parameters'] ?? [])
@@ -74,7 +126,7 @@ test('it uses the built in cursor paginator definition', function () {
         ]);
 });
 
-test('it applies api wide paginator definitions', function () {
+test('it applies api wide paginator definitions and emits inline responses', function () {
     $document = (new Api())
         ->name('custom-pagination')
         ->prefix('api')
@@ -92,6 +144,10 @@ test('it applies api wide paginator definitions', function () {
                     ],
                 ])
                 ->defaultPerPage(50)
+                ->withResponseDescription('Custom page response')
+                ->withResponseHeaders([
+                    'x-total:integer' => 'Total results header',
+                ])
         )
         ->withCursorPagination(
             (new CursorPaginator())
@@ -104,6 +160,10 @@ test('it applies api wide paginator definitions', function () {
                     'trace_id:string' => 'Cursor pagination trace identifier',
                 ])
                 ->defaultPerPage(100)
+                ->withResponseDescription('Custom cursor response')
+                ->withResponseHeaders([
+                    'x-next-cursor:string' => 'Next cursor header',
+                ])
         )
         ->get(
             '/api/paginated-users',
@@ -122,73 +182,58 @@ test('it applies api wide paginator definitions', function () {
 
     $pageParameters = operationParameters($document, '/paginated-users');
     $cursorParameters = operationParameters($document, '/cursor-users');
-    $pageResponse = $document['paths']['/paginated-users']['get']['responses']['200']['content']['application/json']['schema'];
-    $cursorResponse = $document['paths']['/cursor-users']['get']['responses']['200']['content']['application/json']['schema'];
+    $pageResponse = $document['paths']['/paginated-users']['get']['responses']['200'];
+    $cursorResponse = $document['paths']['/cursor-users']['get']['responses']['200'];
+    $pageSchema = $pageResponse['content']['application/json']['schema'];
+    $cursorSchema = $cursorResponse['content']['application/json']['schema'];
 
     expect($pageParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 50')
         ->and($cursorParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 100')
-        ->and($pageResponse['properties']['meta']['properties']['page_info']['$ref'])->toBe('#/components/schemas/CustomPagePaginator')
-        ->and($pageResponse['properties']['meta']['properties']['filters']['type'])->toBe('object')
-        ->and($cursorResponse['properties']['meta']['properties']['cursor_info']['$ref'])->toBe('#/components/schemas/CustomCursorPaginator')
-        ->and($cursorResponse['properties']['meta']['properties']['trace_id']['type'])->toBe('string')
+        ->and($pageResponse['description'])->toBe('Custom page response')
+        ->and($cursorResponse['description'])->toBe('Custom cursor response')
+        ->and(array_key_exists('$ref', $pageResponse))->toBeFalse()
+        ->and(array_key_exists('$ref', $cursorResponse))->toBeFalse()
+        ->and($pageResponse['headers']['x-total']['schema']['type'])->toBe('integer')
+        ->and($cursorResponse['headers']['x-next-cursor']['schema']['type'])->toBe('string')
+        ->and($pageSchema['properties']['meta']['properties']['page_info']['$ref'])->toBe('#/components/schemas/CustomPagePaginator')
+        ->and($pageSchema['properties']['meta']['properties']['filters']['type'])->toBe('object')
+        ->and($cursorSchema['properties']['meta']['properties']['cursor_info']['$ref'])->toBe('#/components/schemas/CustomCursorPaginator')
+        ->and($cursorSchema['properties']['meta']['properties']['trace_id']['type'])->toBe('string')
         ->and($document['components']['schemas']['CustomPagePaginator']['properties'])->toHaveKeys(['total', 'last_page'])
         ->and($document['components']['schemas']['CustomCursorPaginator']['properties'])->toHaveKeys(['next', 'has_more']);
 });
 
-test('it lets route overrides replace api wide paginator definitions', function () {
+test('it lets api wide paginators customize the response envelope', function () {
     $document = (new Api())
-        ->name('pagination-overrides')
+        ->name('custom-paginator-responses')
         ->prefix('api')
         ->withoutBroadcasting()
-        ->withPagination(
-            new LengthAwarePaginator(
-                name: 'ApiWidePaginator',
-                metaKey: 'api_page',
-                defaultPerPage: 40,
-            )
-        )
-        ->withCursorPagination(
-            new CursorPaginator(
-                name: 'ApiWideCursorPaginator',
-                metaKey: 'api_cursor',
-                defaultPerPage: 60,
-            )
-        )
-        ->controllers(\Orchestra\Testbench\workbench_path('app/Http/Controllers/Pagination/Overrides'))
+        ->withPagination(new ApiWidePagePaginator())
+        ->withCursorPagination(new ApiWideCursorPaginator())
         ->get(
             '/api/paginated-users',
             tags: 'Users',
-            summary: 'Default page users',
+            summary: 'List users',
             paginatedResponse: UserTransformer::class,
         )
         ->get(
             '/api/cursor-users',
             tags: 'Users',
-            summary: 'Default cursor users',
+            summary: 'List users by cursor',
             cursorPaginatedResponse: UserTransformer::class,
         )
         ->toOpenAPI()
         ->build();
 
-    $defaultPageParameters = operationParameters($document, '/paginated-users');
-    $defaultCursorParameters = operationParameters($document, '/cursor-users');
-    $overridePageParameters = operationParameters($document, '/override-page-users');
-    $overrideCursorParameters = operationParameters($document, '/override-cursor-users');
-    $defaultPageMeta = $document['paths']['/paginated-users']['get']['responses']['200']['content']['application/json']['schema']['properties']['meta']['properties'];
-    $defaultCursorMeta = $document['paths']['/cursor-users']['get']['responses']['200']['content']['application/json']['schema']['properties']['meta']['properties'];
-    $overridePageMeta = $document['paths']['/override-page-users']['get']['responses']['200']['content']['application/json']['schema']['properties']['meta']['properties'];
-    $overrideCursorMeta = $document['paths']['/override-cursor-users']['get']['responses']['200']['content']['application/json']['schema']['properties']['meta']['properties'];
+    $pageResponse = $document['paths']['/paginated-users']['get']['responses']['200'];
+    $cursorResponse = $document['paths']['/cursor-users']['get']['responses']['200'];
 
-    expect($defaultPageParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 40')
-        ->and($defaultCursorParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 60')
-        ->and($defaultPageMeta['api_page']['$ref'])->toBe('#/components/schemas/ApiWidePaginator')
-        ->and($defaultCursorMeta['api_cursor']['$ref'])->toBe('#/components/schemas/ApiWideCursorPaginator')
-        ->and($overridePageParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 25')
-        ->and($overrideCursorParameters['query:limit']['description'])->toBe('Number of results to return. Defaults to 100')
-        ->and($overridePageMeta['page_state']['$ref'])->toBe('#/components/schemas/OverridePagePaginator')
-        ->and($overridePageMeta['filters']['type'])->toBe('object')
-        ->and($overrideCursorMeta['cursor_state']['$ref'])->toBe('#/components/schemas/OverrideCursorPaginator')
-        ->and($overrideCursorMeta['trace_id']['type'])->toBe('string');
+    expect($pageResponse['description'])->toBe('API-wide page response')
+        ->and(array_keys($pageResponse['content']['application/json']['schema']['properties']))->toBe(['items', 'page'])
+        ->and($pageResponse['content']['application/json']['schema']['properties']['page']['description'])->toBe('Wrapped LengthAwarePaginator')
+        ->and($cursorResponse['description'])->toBe('API-wide cursor response')
+        ->and(array_keys($cursorResponse['content']['application/json']['schema']['properties']))->toBe(['results', 'cursor_state'])
+        ->and($cursorResponse['content']['application/json']['schema']['properties']['cursor_state']['description'])->toBe('Wrapped CursorPaginator');
 });
 
 test('it applies api path filters to canonical paginated paths', function () {
@@ -209,38 +254,6 @@ test('it applies api path filters to canonical paginated paths', function () {
     expect(array_keys($document['paths']))->toBe(['/paginated-users']);
 });
 
-test('it fails when paginator is used without paginatedResponse', function () {
-    expect(fn () => (new Api())
-        ->name('invalid-pagination')
-        ->prefix('api')
-        ->withoutBroadcasting()
-        ->get(
-            '/api/invalid-page-users',
-            tags: 'Users',
-            summary: 'Invalid paginator',
-            paginator: new LengthAwarePaginator(),
-        )
-        ->toOpenAPI()
-        ->build())
-        ->toThrow(GeneratorException::class, 'The [paginator] override requires [paginatedResponse].');
-});
-
-test('it fails when cursorPaginator is used without cursorPaginatedResponse', function () {
-    expect(fn () => (new Api())
-        ->name('invalid-cursor-pagination')
-        ->prefix('api')
-        ->withoutBroadcasting()
-        ->get(
-            '/api/invalid-cursor-users',
-            tags: 'Users',
-            summary: 'Invalid cursor paginator',
-            cursorPaginator: new CursorPaginator(),
-        )
-        ->toOpenAPI()
-        ->build())
-        ->toThrow(GeneratorException::class, 'The [cursorPaginator] override requires [cursorPaginatedResponse].');
-});
-
 test('it fails when paginator schema names collide with different definitions', function () {
     expect(fn () => (new Api())
         ->name('conflicting-paginators')
@@ -250,6 +263,12 @@ test('it fails when paginator schema names collide with different definitions', 
             name: 'SharedPaginator',
             object: [
                 'total:integer' => 'Total results',
+            ],
+        ))
+        ->withCursorPagination(new CursorPaginator(
+            name: 'SharedPaginator',
+            object: [
+                'count:integer' => 'Different paginator shape',
             ],
         ))
         ->get(
@@ -262,13 +281,7 @@ test('it fails when paginator schema names collide with different definitions', 
             '/api/conflicting-paginator-two',
             tags: 'Users',
             summary: 'Second paginator',
-            paginatedResponse: UserTransformer::class,
-            paginator: new LengthAwarePaginator(
-                name: 'SharedPaginator',
-                object: [
-                    'count:integer' => 'Different paginator shape',
-                ],
-            ),
+            cursorPaginatedResponse: UserTransformer::class,
         )
         ->toOpenAPI()
         ->build())

@@ -5,8 +5,6 @@ namespace StackTrace\Inspec;
 
 
 use Illuminate\Support\Arr;
-use StackTrace\Inspec\Paginators\CursorPaginator;
-use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
 class Operation
 {
@@ -28,13 +26,9 @@ class Operation
 
     public array|string|null $cursorPaginatedResponse;
 
-    public ?LengthAwarePaginator $paginator;
-
     public int $responseCode;
 
     public array $additionalResponses;
-
-    public ?CursorPaginator $cursorPaginator;
 
     public bool $deprecated;
 
@@ -50,10 +44,8 @@ class Operation
         ?array $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
-        ?LengthAwarePaginator $paginator = null,
         int $responseCode = 200,
         array $additionalResponses = [],
-        ?CursorPaginator $cursorPaginator = null,
         bool $deprecated = false,
         bool $multipart = false,
     ) {
@@ -66,10 +58,8 @@ class Operation
         $this->response = $response;
         $this->paginatedResponse = $paginatedResponse;
         $this->cursorPaginatedResponse = $cursorPaginatedResponse;
-        $this->paginator = $paginator;
         $this->responseCode = $responseCode;
         $this->additionalResponses = $additionalResponses;
-        $this->cursorPaginator = $cursorPaginator;
         $this->deprecated = $deprecated;
         $this->multipart = $multipart;
     }
@@ -86,10 +76,8 @@ class Operation
             response: $route->response,
             paginatedResponse: $route->paginatedResponse,
             cursorPaginatedResponse: $route->cursorPaginatedResponse,
-            paginator: $route->paginator,
             responseCode: $route->responseCode,
             additionalResponses: $route->additionalResponses,
-            cursorPaginator: $route->cursorPaginator,
             deprecated: $route->deprecated,
             multipart: $route->multipart,
         );
@@ -158,13 +146,6 @@ class Operation
         return $this;
     }
 
-    public function paginator(?LengthAwarePaginator $paginator): static
-    {
-        $this->paginator = $paginator;
-
-        return $this;
-    }
-
     public function responseCode(int $responseCode): static
     {
         $this->responseCode = $responseCode;
@@ -175,13 +156,6 @@ class Operation
     public function additionalResponses(array $additionalResponses): static
     {
         $this->additionalResponses = $additionalResponses;
-
-        return $this;
-    }
-
-    public function cursorPaginator(?CursorPaginator $cursorPaginator): static
-    {
-        $this->cursorPaginator = $cursorPaginator;
 
         return $this;
     }

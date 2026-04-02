@@ -101,7 +101,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Manual route helpers may also take `operation: new Operation(...)` instead of the long named-argument form.
 - Request bodies infer `422`, and throttled routes infer `429`, unless the route or API configuration disables or replaces them.
 - Use `paginatedResponse` or `cursorPaginatedResponse` with transformer class strings for paginated collections.
-- Customize pagination globally with `Api::withPagination()` / `Api::withCursorPagination()`, or per route with `paginator:` / `cursorPaginator:` overrides.
+- Customize pagination globally with `Api::withPagination()` / `Api::withCursorPagination()`. The paginator now owns query params, paginator schema/meta, and the generated paginated success response.
 - Customize inferred error responses with `Api::withValidationErrorResponse()`, `Api::withoutValidationErrorResponse()`, `Api::withTooManyRequestsResponse()`, and `Api::withoutTooManyRequestsResponse()`.
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.

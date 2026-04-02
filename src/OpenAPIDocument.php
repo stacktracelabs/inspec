@@ -575,31 +575,12 @@ class OpenAPIDocument
         return $items;
     }
 
-    protected function buildPaginatorResponse(array|string $def, Paginator $paginator): array
+    protected function buildPaginatorResponse(array|string $def, Paginator $paginator): Response
     {
         $items = $this->resolvePaginatedItems($def);
-        $properties = $this->paginatorMetaProperties($paginator);
+        $metaProperties = $this->paginatorMetaProperties($paginator);
 
-        return [
-            'description' => 'Successful response',
-            'content' => [
-                'application/json' => [
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'data' => [
-                                'type' => 'array',
-                                'items' => $items,
-                            ],
-                            'meta' => [
-                                'type' => 'object',
-                                'properties' => $properties,
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ];
+        return $paginator->buildResponse($items, $metaProperties);
     }
 
     protected function registerPaginatorSchema(Paginator $paginator): string
@@ -658,7 +639,7 @@ class OpenAPIDocument
         return $block;
     }
 
-    protected function buildReusableResponseDefinition(Response $response): array
+    protected function buildResponseDefinition(Response $response): array
     {
         $definition = [
             'description' => $response->description,
@@ -671,12 +652,34 @@ class OpenAPIDocument
         if (is_array($response->body)) {
             $definition['content'] = [
                 $response->contentType => [
-                    'schema' => $this->buildObject($response->body),
+                    'schema' => $this->resolveResponseSchema($response->body),
                 ],
             ];
         }
 
         return $definition;
+    }
+
+    protected function resolveResponseSchema(array $definition): array
+    {
+        if ($this->isOpenApiSchema($definition)) {
+            return $definition;
+        }
+
+        return $this->buildObject($definition);
+    }
+
+    protected function isOpenApiSchema(array $definition): bool
+    {
+        return Arr::hasAny($definition, [
+            '$ref',
+            'allOf',
+            'anyOf',
+            'oneOf',
+            'type',
+            'properties',
+            'items',
+        ]);
     }
 
     protected function buildResponseHeaders(array $definition): array
@@ -708,7 +711,11 @@ class OpenAPIDocument
 
     protected function registerReusableResponse(Response $response): string
     {
-        $definition = $this->buildReusableResponseDefinition($response);
+        if ($response->name === null) {
+            throw GeneratorException::withMessage('Only named responses can be registered as reusable response components.');
+        }
+
+        $definition = $this->buildResponseDefinition($response);
         $registered = $this->responses[$response->name] ?? null;
 
         if (is_array($registered) && $registered !== $definition) {
@@ -722,8 +729,6 @@ class OpenAPIDocument
 
     protected function addRoute(Route $route, Operation $operation, string $method, ?string $path = null): static
     {
-        $this->assertPaginatorOverridesAreValid($operation);
-
         $url = $path ?: '/'.ltrim($route->uri(), '/');
 
         $path = ArrayBuilder::make()
@@ -764,14 +769,14 @@ class OpenAPIDocument
         if ($operation->cursorPaginatedResponse) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildQueryParameters(($operation->cursorPaginator ?? $this->cursorPagination)->query),
+                ...$this->buildQueryParameters($this->cursorPagination->query),
             ];
         }
 
         if ($operation->paginatedResponse) {
             $parameters = [
                 ...$parameters,
-                ...$this->buildQueryParameters(($operation->paginator ?? $this->pagination)->query),
+                ...$this->buildQueryParameters($this->pagination->query),
             ];
         }
 
@@ -796,9 +801,15 @@ class OpenAPIDocument
         if (is_array($operation->response) && !empty($operation->response)) {
             $responses[$operation->responseCode] = $this->buildResponse($operation->response);
         } else if ($operation->paginatedResponse != null) {
-            $responses[$operation->responseCode] = $this->buildPaginatorResponse($operation->paginatedResponse, $operation->paginator ?? $this->pagination);
+            $responses[$operation->responseCode] = $this->buildPaginatorResponse(
+                $operation->paginatedResponse,
+                $this->pagination,
+            );
         } else if ($operation->cursorPaginatedResponse != null) {
-            $responses[$operation->responseCode] = $this->buildPaginatorResponse($operation->cursorPaginatedResponse, $operation->cursorPaginator ?? $this->cursorPagination);
+            $responses[$operation->responseCode] = $this->buildPaginatorResponse(
+                $operation->cursorPaginatedResponse,
+                $this->cursorPagination,
+            );
         }
 
         foreach ($this->buildInferredErrorResponses($operation, $middleware) as $code => $response) {
@@ -893,9 +904,9 @@ class OpenAPIDocument
                 continue;
             }
 
-            $responses[$code] = [
-                '$ref' => $this->registerReusableResponse($response),
-            ];
+            $responses[$code] = $response->name === null
+                ? $this->buildResponseDefinition($response)
+                : ['$ref' => $this->registerReusableResponse($response)];
         }
 
         return $responses;
@@ -955,17 +966,6 @@ class OpenAPIDocument
         }
 
         return $parameters;
-    }
-
-    protected function assertPaginatorOverridesAreValid(Operation $operation): void
-    {
-        if ($operation->paginator && ! $operation->paginatedResponse) {
-            throw GeneratorException::withMessage('The [paginator] override requires [paginatedResponse].');
-        }
-
-        if ($operation->cursorPaginator && ! $operation->cursorPaginatedResponse) {
-            throw GeneratorException::withMessage('The [cursorPaginator] override requires [cursorPaginatedResponse].');
-        }
     }
 
     protected function assertSupportedErrorResponseCode(int $code): void

@@ -305,6 +305,8 @@ Notes:
 
 Use transformer class strings for paginated responses.
 
+`Paginator` controls the full pagination behavior: query parameters, paginator schema, `meta` block, and the final success response.
+
 ```php
 <?php
 
@@ -315,6 +317,31 @@ use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Documentation;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 
+class WrappedLengthAwarePaginator extends LengthAwarePaginator
+{
+    protected static function defaultResponseDescription(): string
+    {
+        return 'Successful response';
+    }
+
+    protected function buildResponseBody(array $items, array $metaProperties): ?array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'results' => [
+                    'type' => 'array',
+                    'items' => $items,
+                ],
+                'page' => [
+                    'type' => 'object',
+                    'properties' => $metaProperties,
+                ],
+            ],
+        ];
+    }
+}
+
 class PublicApiDocumentation extends Documentation
 {
     public function build(Api $api): void
@@ -323,7 +350,7 @@ class PublicApiDocumentation extends Documentation
             ->name('public')
             ->prefix('api')
             ->withPagination(
-                (new LengthAwarePaginator())
+                (new WrappedLengthAwarePaginator())
                     ->withMeta([
                         'filters' => [
                             'status?:string' => 'Applied status filter',
@@ -337,6 +364,7 @@ class PublicApiDocumentation extends Documentation
                         'trace_id:string' => 'Cursor trace identifier',
                     ])
                     ->defaultPerPage(100)
+                    ->withResponseDescription('Cursor response')
             );
     }
 }
@@ -348,7 +376,6 @@ class PublicApiDocumentation extends Documentation
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
-use StackTrace\Inspec\Paginators\LengthAwarePaginator;
 use StackTrace\Inspec\Route;
 
 class ListUsersController
@@ -357,14 +384,6 @@ class ListUsersController
         tags: 'Users',
         summary: 'List users',
         paginatedResponse: UserTransformer::class,
-        paginator: new LengthAwarePaginator(
-            meta: [
-                'filters' => [
-                    'status?:string' => 'Applied status filter',
-                ],
-            ],
-            defaultPerPage: 50,
-        ),
     )]
     public function __invoke()
     {
@@ -379,7 +398,6 @@ class ListUsersController
 namespace App\Http\Controllers\Api;
 
 use App\Transformers\UserTransformer;
-use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Route;
 
 class CursorUsersController
@@ -388,12 +406,6 @@ class CursorUsersController
         tags: 'Users',
         summary: 'List users with cursor pagination',
         cursorPaginatedResponse: UserTransformer::class,
-        cursorPaginator: new CursorPaginator(
-            meta: [
-                'trace_id:string' => 'Cursor trace identifier',
-            ],
-            defaultPerPage: 100,
-        ),
     )]
     public function __invoke()
     {
@@ -406,9 +418,9 @@ Pagination behavior:
 
 - `paginatedResponse` uses the active `LengthAwarePaginator` definition and adds its query parameters plus a paginated `meta` block.
 - `cursorPaginatedResponse` uses the active `CursorPaginator` definition and adds its query parameters plus a cursor `meta` block.
-- `Api::withPagination()` and `Api::withCursorPagination()` replace the API-wide defaults.
-- `paginator` and `cursorPaginator` replace the API defaults for a single route.
-- In PHP attributes, route-level paginator overrides must be passed as constructor arguments like `new LengthAwarePaginator(...)` or `new CursorPaginator(...)`.
+- `Api::withPagination()` and `Api::withCursorPagination()` replace the API-wide paginator defaults.
+- Custom paginator subclasses may change the success envelope by overriding `buildResponseBody(...)`.
+- `Paginator::withResponseDescription()`, `withResponseContentType()`, and `withResponseHeaders()` customize the generated success response metadata.
 - The built-in defaults still use `limit` + `page` with `meta.pagination`, and `limit` + `cursor` with `meta.cursor`.
 
 ### Multipart and file uploads
