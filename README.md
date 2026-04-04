@@ -537,6 +537,7 @@ Examples:
 | `status:string|enum:draft,published` | String field limited to the given enum values |
 | `tags:array,string` | Array of strings |
 | `avatar:file` | Binary file upload |
+| `user:App\Transformers\UserTransformer` | Inline `$ref` to transformer schema |
 
 ### Primitive fields
 
@@ -630,6 +631,16 @@ If a field value is a transformer class string, Inspec resolves the transformer'
     'data' => \App\Transformers\UserTransformer::class,
 ]
 ```
+
+You can also use a Fractal transformer class as the **type** in the DSL key. This is equivalent — Inspec detects that the type is a transformer and emits the same `$ref`:
+
+```php
+[
+    'user:' . \App\Transformers\UserTransformer::class => 'Owning user',
+]
+```
+
+Both forms register the transformer's schema as a reusable component and reference it via `$ref`.
 
 `StackTrace\Inspec\OpenAPIDocument` also supports `SchemaObject` references when you build objects programmatically.
 

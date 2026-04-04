@@ -141,3 +141,25 @@ test('it keeps paginated responses and inferred error responses unaffected', fun
         ->and(array_keys($paginatedResponse['content']['application/json']['schema']['properties']))->toBe(['data', 'meta'])
         ->and($paginatedResponse['content']['application/json']['schema']['properties']['payload'] ?? null)->toBeNull();
 });
+
+test('it allows using a fractal transformer as a property type in the dsl', function () {
+    $document = (new Api())
+        ->name('transformer-type')
+        ->withoutBroadcasting()
+        ->post(
+            '/webhooks',
+            tags: 'Webhooks',
+            summary: 'Receive webhooks',
+            response: [
+                'user:' . UserTransformer::class => 'Owning user',
+            ],
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $properties = $document['paths']['/webhooks']['post']['responses']['200']['content']['application/json']['schema']['properties'];
+
+    expect($properties)->toHaveKey('user')
+        ->and($properties['user']['$ref'])->toBe('#/components/schemas/User')
+        ->and($document['components']['schemas'])->toHaveKey('User');
+});
