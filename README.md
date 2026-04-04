@@ -731,10 +731,14 @@ Transformer schema behavior:
 
 - The schema name defaults to the transformer class basename without the `Transformer` suffix.
 - You can override the component name with `#[Schema(name: 'CustomName', object: [...])]`.
-- `#[ExpandItem(...)]` and `#[ExpandCollection(...)]` are only considered on methods whose names start with `include`.
-- The generated property name is derived from the method name in `snake_case`, so `includeTeam()` becomes `team`.
-- Expanded relationships are emitted as objects with a nested `data` property.
-- `ExpandItem` can also receive an array of transformer class strings, which is emitted as an `allOf` list under `data`.
+- `#[ExpandItem(...)]` and `#[ExpandCollection(...)]` are only considered on methods whose names start with `include`. Other methods are ignored.
+- The generated property name is derived from the method name in `snake_case` after stripping `include`, so `includeTeam()` becomes `team` and `includeCoAuthors()` becomes `co_authors`.
+- Each expand is emitted as a `type: object` with a nested `data` property whose shape depends on the attribute:
+  - `ExpandItem(Transformer::class)` — `data` is a direct `$ref` to the transformer schema.
+  - `ExpandItem([A::class, B::class])` — `data` is an `allOf` list of `$ref` entries.
+  - `ExpandCollection(Transformer::class)` — `data` is a `type: array` whose `items` is a `$ref` to the transformer schema.
+- `ExpandCollection` accepts only a single transformer class string. Use `ExpandItem([...])` for multi-transformer unions.
+- All referenced transformer schemas are registered as reusable `#/components/schemas/` entries.
 
 ## Auth and middleware-derived docs
 

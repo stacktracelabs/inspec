@@ -390,10 +390,14 @@ Rules:
 
 - The schema name defaults to the transformer class basename without `Transformer`.
 - Override the component name with `#[Schema(name: 'CustomName', object: [...])]` only when needed.
-- Only `include*` methods are considered for expands.
-- `includeTeam()` becomes the `team` property in snake case.
-- Expanded relationships are emitted as objects with nested `data`.
-- `ExpandItem([A::class, B::class])` produces `allOf` under `data`.
+- Only `include*` methods are considered for expands. Other methods (`transform`, helpers, etc.) are ignored.
+- The generated property name is derived from the method name in `snake_case` after stripping `include`, so `includeTeam()` becomes `team` and `includeCoAuthors()` becomes `co_authors`.
+- Each expanded relationship is emitted as a `type: object` with a nested `data` property. The shape of `data` depends on the attribute:
+  - `ExpandItem(Transformer::class)` — `data` is a direct `$ref` to the transformer schema.
+  - `ExpandItem([A::class, B::class])` — `data` is an `allOf` list of `$ref` entries.
+  - `ExpandCollection(Transformer::class)` — `data` is a `type: array` whose `items` is a `$ref` to the transformer schema.
+- All referenced transformer schemas are registered as reusable `#/components/schemas/` entries.
+- `ExpandCollection` accepts only a single transformer class string. Use `ExpandItem([...])` for multi-transformer unions.
 
 ## Generated behavior and caveats
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` to opt out for a specific spec.

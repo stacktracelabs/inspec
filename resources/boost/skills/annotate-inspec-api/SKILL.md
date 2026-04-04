@@ -45,9 +45,14 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 ## Transformer Rules
 - Put `#[Schema(object: [...])]` on the transformer's `transform()` method.
 - The schema name defaults to the transformer class basename without `Transformer`; override with `name:` only when needed.
-- Only `include*` methods are considered for expands.
-- `includeTeam()` becomes the `team` property in the generated schema.
-- `ExpandItem([A::class, B::class])` produces `allOf` under `data`.
+- Only `include*` methods are considered for expands. Other methods (`transform`, helpers, etc.) are skipped.
+- The property name is the method name in `snake_case` after stripping `include`: `includeTeam()` → `team`, `includeCoAuthors()` → `co_authors`.
+- Each expand is emitted as a `type: object` with a nested `data` property:
+  - `#[ExpandItem(Transformer::class)]` — `data` is a `$ref` to the transformer schema.
+  - `#[ExpandItem([A::class, B::class])]` — `data` is an `allOf` list of `$ref` entries.
+  - `#[ExpandCollection(Transformer::class)]` — `data` is a `type: array` whose `items` is a `$ref` to the transformer schema.
+- `ExpandCollection` only accepts a single transformer class. Use `ExpandItem([...])` for multi-transformer unions.
+- All referenced transformer schemas are registered as reusable `#/components/schemas/` entries.
 
 ## Current Behavior To Respect
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when the generated spec should opt out.

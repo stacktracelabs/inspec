@@ -51,3 +51,6 @@ Route::domain('two.example.test')->post('webhooks/ambiguous', fn () => [
 Route::get('apiary/example', fn () => [
     'status' => 'ok',
 ]);
+
+Route::get('posts', fn () => []);
+Route::post('posts', fn () => []);
