@@ -41,6 +41,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - Use `array,<itemType>` for primitive arrays, or use `'data:array' => UserTransformer::class` for arrays of transformer-backed objects.
 - Use `|enum:a,b,c` or `|enum:App\\Enums\\BackedEnum`.
 - Use `file` for uploads; it becomes `type: string` with `format: binary`.
+- When a property value is an array (inline nested object), always include `'@description' => '...'` as the first key to give the object a description. Do not leave nested objects without a description.
 
 ## Transformer Rules
 - Put `#[Schema(object: [...])]` on the transformer's `transform()` method.

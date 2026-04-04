@@ -206,7 +206,7 @@ public function __invoke()
 Reserved object metadata keys:
 
 - `@description`
-  Adds an object-level description.
+  Adds an object-level description. Always include this when writing an inline nested object — do not define a nested object with only field entries and no description.
 - `@example`
   Adds an object-level example.
 
