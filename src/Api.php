@@ -75,9 +75,7 @@ class Api
     public function __construct()
     {
         $this->title = config('app.name', 'Laravel');
-        $this->servers = [
-            'Local' => config('app.url', 'http://localhost'),
-        ];
+        $this->servers = [];
         $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
         $this->successResponse = new StandardSuccessResponse();
