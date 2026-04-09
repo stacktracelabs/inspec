@@ -9,6 +9,7 @@
 - Annotate the exact public controller method Laravel resolves for the route with `#[StackTrace\Inspec\Route(...)]`.
 - Inspec only documents annotated methods that are also registered Laravel routes. Invokable controllers use `__invoke`.
 - Put reusable response schemas on Fractal transformers with `#[StackTrace\Inspec\Schema(...)]` on `transform()`.
+- Do not define schema arrays in constants and reference them from the attribute; write the `object` definition directly inside `#[Schema(...)]`.
 - Annotate transformer `include*` methods with `#[ExpandItem]` or `#[ExpandCollection]` for expandable nested resources.
 - Configure Inspec in `config/inspec.php`. Important keys are `docs` for documentation classes and `output` for generated file output.
 

@@ -48,6 +48,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 - The schema name defaults to the transformer class basename without `Transformer`; override with `name:` only when needed.
 - Only `include*` methods are considered for expands. Other methods (`transform`, helpers, etc.) are skipped.
 - The property name is the method name in `snake_case` after stripping `include`: `includeTeam()` → `team`, `includeCoAuthors()` → `co_authors`.
+- Do not define a schema array in a constant/property and reuse it in `#[Schema(...)]`; keep schema entries written directly in the attribute.
 - Each expand is emitted as a `type: object` with a nested `data` property:
   - `#[ExpandItem(Transformer::class)]` — `data` is a `$ref` to the transformer schema.
   - `#[ExpandItem([A::class, B::class])]` — `data` is an `allOf` list of `$ref` entries.

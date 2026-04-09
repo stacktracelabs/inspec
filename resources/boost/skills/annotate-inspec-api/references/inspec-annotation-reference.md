@@ -353,6 +353,9 @@ public function __invoke()
 ## Transformer schemas and expands
 Fractal transformers define reusable component schemas with `#[StackTrace\Inspec\Schema(...)]` on `transform()`.
 
+`Schema` should be defined inline in the attribute. Do not store schema arrays in constants or properties and then pass that identifier to `object:`.
+Write schema objects directly in the attribute call to keep annotations explicit and local.
+
 ```php
 use StackTrace\Inspec\ExpandCollection;
 use StackTrace\Inspec\ExpandItem;
