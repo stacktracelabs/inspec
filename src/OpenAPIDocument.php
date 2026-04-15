@@ -555,6 +555,20 @@ class OpenAPIDocument
         );
     }
 
+    protected function buildSuccessResponseFromTransformer(string $class): Response
+    {
+        if (! class_exists($class)) {
+            throw GeneratorException::withMessage("The class [$class] does not exist.");
+        }
+
+        [$schema, $schemaDef] = $this->gatherObjectSchemaFromClass($class);
+        $this->schema($schema, $schemaDef);
+
+        return $this->successResponse->buildResponse([
+            '$ref' => "#/components/schemas/{$schema}",
+        ]);
+    }
+
     protected function resolvePaginatedItems(array|string $def): array
     {
         if (is_string($def)) {
@@ -800,6 +814,8 @@ class OpenAPIDocument
 
         if (is_array($operation->response) && !empty($operation->response)) {
             $responses[$operation->responseCode] = $this->buildSuccessResponse($operation->response);
+        } else if (is_string($operation->response)) {
+            $responses[$operation->responseCode] = $this->buildSuccessResponseFromTransformer($operation->response);
         } else if ($operation->paginatedResponse != null) {
             $responses[$operation->responseCode] = $this->buildPaginatorResponse(
                 $operation->paginatedResponse,

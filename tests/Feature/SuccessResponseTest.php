@@ -142,6 +142,27 @@ test('it keeps paginated responses and inferred error responses unaffected', fun
         ->and($paginatedResponse['content']['application/json']['schema']['properties']['payload'] ?? null)->toBeNull();
 });
 
+test('it resolves a transformer class as a response', function () {
+    $document = (new Api())
+        ->name('transformer-response')
+        ->withoutBroadcasting()
+        ->get(
+            '/users/me',
+            tags: 'Users',
+            summary: 'Get current user',
+            response: UserTransformer::class,
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $response = $document['paths']['/users/me']['get']['responses']['200'];
+    $schema = $response['content']['application/json']['schema'];
+
+    expect($schema['$ref'])->toBe('#/components/schemas/User')
+        ->and($document['components']['schemas'])->toHaveKey('User')
+        ->and(array_keys($document['components']['schemas']['User']['properties']))->toBe(['id', 'name', 'email']);
+});
+
 test('it allows using a fractal transformer as a property type in the dsl', function () {
     $document = (new Api())
         ->name('transformer-type')

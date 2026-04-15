@@ -54,3 +54,5 @@ Route::get('apiary/example', fn () => [
 
 Route::get('posts', fn () => []);
 Route::post('posts', fn () => []);
+
+Route::get('users/me', fn () => []);

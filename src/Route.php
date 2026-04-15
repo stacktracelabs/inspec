@@ -19,7 +19,7 @@ readonly class Route
      * @param array $route Route parameter specification using the Property DSL.
      * @param array $query Query parameter specification using the Property DSL.
      * @param array|null $request Request body fields.
-     * @param array|null $response Primary success response body.
+     * @param array|string|null $response Primary success response body or a transformer class.
      * @param array|string|null $paginatedResponse Paginated `data` collection backed by a transformer class.
      * @param array|string|null $cursorPaginatedResponse Cursor-paginated `data` collection backed by a transformer class.
      * @param int $responseCode Status code for the primary success response.
@@ -34,7 +34,7 @@ readonly class Route
         public array             $route = [],
         public array             $query = [],
         public ?array            $request = null,
-        public ?array            $response = null,
+        public array|string|null $response = null,
         public array|string|null $paginatedResponse = null,
         public array|string|null $cursorPaginatedResponse = null,
         public int               $responseCode = 200,

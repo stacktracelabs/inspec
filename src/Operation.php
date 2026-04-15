@@ -20,7 +20,7 @@ class Operation
 
     public ?array $request;
 
-    public ?array $response;
+    public array|string|null $response;
 
     public array|string|null $paginatedResponse;
 
@@ -41,7 +41,7 @@ class Operation
         array $route = [],
         array $query = [],
         ?array $request = null,
-        ?array $response = null,
+        array|string|null $response = null,
         array|string|null $paginatedResponse = null,
         array|string|null $cursorPaginatedResponse = null,
         int $responseCode = 200,
@@ -125,7 +125,7 @@ class Operation
         return $this;
     }
 
-    public function response(?array $response): static
+    public function response(array|string|null $response): static
     {
         $this->response = $response;
 

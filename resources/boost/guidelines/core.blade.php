@@ -100,7 +100,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Use `responseCode: 201` for create endpoints and `additionalResponses` for extra status codes.
 - `additionalResponses` may use `null`, plain strings, `Response` instances, or `Response` class strings.
 - Manual route helpers may also take `operation: new Operation(...)` instead of the long named-argument form.
-- `response: [...]` defines the inner success payload. Use `Api::withSuccessResponse()` when the standard non-paginated success envelope, description, content type, or headers should change API-wide.
+- `response: [...]` defines the inner success payload as a Property DSL array. Pass a transformer class string directly (`response: UserTransformer::class`) when the entire response body is described by that transformer's `#[Schema]`; Inspec registers the schema under `components/schemas` and emits a `$ref`. Use `Api::withSuccessResponse()` when the standard non-paginated success envelope, description, content type, or headers should change API-wide.
 - Request bodies infer `422`, and throttled routes infer `429`, unless the route or API configuration disables or replaces them.
 - Use `paginatedResponse` or `cursorPaginatedResponse` with transformer class strings for paginated collections.
 - Customize pagination globally with `Api::withPagination()` / `Api::withCursorPagination()`. The paginator now owns query params, paginator schema/meta, and the generated paginated success response.
