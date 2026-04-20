@@ -682,23 +682,32 @@ class Api
                 }
 
                 $action = $method->name === '__invoke' ? $method->class : $method->class.'@'.$method->name;
-                $route = Route::getRoutes()->getByAction($action);
+                $routes = $this->routesForAction($action);
 
-                if (! $route) {
+                if ($routes->isEmpty()) {
                     continue;
                 }
 
-                if (! $this->matchesRouteFilters($route)) {
-                    continue;
-                }
+                foreach ($routes as $route) {
+                    if (! $this->matchesRouteFilters($route)) {
+                        continue;
+                    }
 
-                $operation = Operation::fromRoute($attribute->newInstance());
+                    $operation = Operation::fromRoute($attribute->newInstance());
 
-                foreach ($this->documentedMethodsForRoute($route) as $method) {
-                    $document->route($route, $operation, $method, $this->resolveDocumentPath($route->uri()));
+                    foreach ($this->documentedMethodsForRoute($route) as $httpMethod) {
+                        $document->route($route, $operation, $httpMethod, $this->resolveDocumentPath($route->uri()));
+                    }
                 }
             }
         });
+    }
+
+    protected function routesForAction(string $action): Collection
+    {
+        return collect(Route::getRoutes()->get())
+            ->filter(fn (LaravelRoute $route) => $this->routeAction($route) === $action)
+            ->values();
     }
 
     protected function documentManualRoutes(OpenAPIDocument $document): void
