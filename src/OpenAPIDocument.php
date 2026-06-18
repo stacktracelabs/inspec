@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use League\Fractal\TransformerAbstract;
 use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\RelationSerializers\WrappedRelationSerializer;
 use StackTrace\Inspec\Responses\StandardSuccessResponse;
 use StackTrace\Inspec\Responses\TooManyRequestsResponse;
 use StackTrace\Inspec\Responses\ValidationErrorResponse;
@@ -46,6 +47,8 @@ class OpenAPIDocument
 
     protected SuccessResponse $successResponse;
 
+    protected RelationSerializer $relationSerializer;
+
     /**
      * @var array<int, Response|null>
      */
@@ -56,6 +59,7 @@ class OpenAPIDocument
         $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
         $this->successResponse = new StandardSuccessResponse();
+        $this->relationSerializer = new WrappedRelationSerializer();
         $this->errorResponses = [
             422 => new ValidationErrorResponse(),
             429 => new TooManyRequestsResponse(),
@@ -128,6 +132,13 @@ class OpenAPIDocument
     public function withSuccessResponse(SuccessResponse $response): static
     {
         $this->successResponse = $response;
+
+        return $this;
+    }
+
+    public function withRelationSerializer(RelationSerializer $serializer): static
+    {
+        $this->relationSerializer = $serializer;
 
         return $this;
     }
@@ -282,14 +293,9 @@ class OpenAPIDocument
                     if ($attrInstance instanceof ExpandCollection) {
                         $expandName = $resolveExpandedSchema($attrInstance->transformer);
 
-                        $expandedValue = [
-                            'type' => 'object',
-                            'properties' => [
-                                'data' => $this->asArray([
-                                    '$ref' => "#/components/schemas/{$expandName}",
-                                ])
-                            ]
-                        ];
+                        $expandedValue = $this->relationSerializer->serializeCollection([
+                            '$ref' => "#/components/schemas/{$expandName}",
+                        ]);
                     } else if ($attrInstance instanceof ExpandItem) {
                         if (is_array($attrInstance->transformer)) {
                             $refs = collect($attrInstance->transformer)
@@ -297,26 +303,18 @@ class OpenAPIDocument
                                 ->map(fn ($it) => ['$ref' => "#/components/schemas/{$it}"])
                                 ->all();
 
-                            $expandedValue = [
-                                'type' => 'object',
-                                'properties' => [
-                                    'data' => [
-                                        'allOf' => $refs,
-                                    ]
-                                ]
+                            $itemValue = [
+                                'allOf' => $refs,
                             ];
                         } else {
                             $expandName = $resolveExpandedSchema($attrInstance->transformer);
 
-                            $expandedValue = [
-                                'type' => 'object',
-                                'properties' => [
-                                    'data' => [
-                                        '$ref' => "#/components/schemas/{$expandName}"
-                                    ]
-                                ]
+                            $itemValue = [
+                                '$ref' => "#/components/schemas/{$expandName}"
                             ];
                         }
+
+                        $expandedValue = $this->relationSerializer->serializeItem($itemValue);
                     }
 
                     if ($expandedValue) {

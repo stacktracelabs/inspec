@@ -737,6 +737,7 @@ Transformer schema behavior:
   - `ExpandItem(Transformer::class)` — `data` is a direct `$ref` to the transformer schema.
   - `ExpandItem([A::class, B::class])` — `data` is an `allOf` list of `$ref` entries.
   - `ExpandCollection(Transformer::class)` — `data` is a `type: array` whose `items` is a `$ref` to the transformer schema.
+- Relation serialization is controlled by `RelationSerializer`. The default is `WrappedRelationSerializer('data')`. Use `Api::withRelationSerializer(new DirectRelationSerializer())` when your serializer emits relations directly, or `new WrappedRelationSerializer('resource')` when your wrapper key is not `data`.
 - `ExpandCollection` accepts only a single transformer class string. Use `ExpandItem([...])` for multi-transformer unions.
 - All referenced transformer schemas are registered as reusable `#/components/schemas/` entries.
 

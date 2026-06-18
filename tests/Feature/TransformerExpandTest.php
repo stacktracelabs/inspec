@@ -1,6 +1,8 @@
 <?php
 
 use StackTrace\Inspec\Api;
+use StackTrace\Inspec\RelationSerializers\DirectRelationSerializer;
+use StackTrace\Inspec\RelationSerializers\WrappedRelationSerializer;
 use Workbench\App\Transformers\PostTransformer;
 use Workbench\App\Transformers\TagTransformer;
 use Workbench\App\Transformers\TeamTransformer;
@@ -77,6 +79,113 @@ test('ExpandItem with an array of transformers produces an allOf under data', fu
             ['$ref' => '#/components/schemas/User'],
             ['$ref' => '#/components/schemas/Team'],
         ]);
+});
+
+test('ExpandItem can be generated without a nested data wrapper', function () {
+    $document = (new Api())
+        ->name('expand-item-unwrapped')
+        ->withoutBroadcasting()
+        ->withRelationSerializer(new DirectRelationSerializer())
+        ->get(
+            '/posts',
+            tags: 'Posts',
+            summary: 'List posts',
+            response: [
+                'data:array' => PostTransformer::class,
+            ],
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $schemas = $document['components']['schemas'];
+
+    expect($schemas)->toHaveKey('Post')
+        ->and($schemas['Post']['properties'])->toHaveKey('author')
+        ->and($schemas['Post']['properties']['author'])->toBe([
+            '$ref' => '#/components/schemas/User',
+        ]);
+});
+
+test('ExpandItem with an array of transformers can be generated without a nested data wrapper', function () {
+    $document = (new Api())
+        ->name('expand-item-allof-unwrapped')
+        ->withoutBroadcasting()
+        ->withRelationSerializer(new DirectRelationSerializer())
+        ->get(
+            '/posts',
+            tags: 'Posts',
+            summary: 'List posts',
+            response: [
+                'data:array' => PostTransformer::class,
+            ],
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $schemas = $document['components']['schemas'];
+
+    expect($schemas)->toHaveKey('Post')
+        ->and($schemas['Post']['properties'])->toHaveKey('co_authors')
+        ->and($schemas['Post']['properties']['co_authors'])->toBe([
+            'allOf' => [
+                ['$ref' => '#/components/schemas/User'],
+                ['$ref' => '#/components/schemas/Team'],
+            ],
+        ]);
+});
+
+test('ExpandCollection can be generated without a nested data wrapper', function () {
+    $document = (new Api())
+        ->name('expand-collection-unwrapped')
+        ->withoutBroadcasting()
+        ->withRelationSerializer(new DirectRelationSerializer())
+        ->get(
+            '/posts',
+            tags: 'Posts',
+            summary: 'List posts',
+            response: [
+                'data:array' => PostTransformer::class,
+            ],
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $schemas = $document['components']['schemas'];
+
+    expect($schemas)->toHaveKey('Post')
+        ->and($schemas['Post']['properties'])->toHaveKey('tags')
+        ->and($schemas['Post']['properties']['tags'])->toBe([
+            'type' => 'array',
+            'items' => [
+                '$ref' => '#/components/schemas/Tag',
+            ],
+        ]);
+});
+
+test('relation serializer can use a custom wrapper key', function () {
+    $document = (new Api())
+        ->name('expand-custom-wrapper-key')
+        ->withoutBroadcasting()
+        ->withRelationSerializer(new WrappedRelationSerializer('resource'))
+        ->get(
+            '/posts',
+            tags: 'Posts',
+            summary: 'List posts',
+            response: [
+                'data:array' => PostTransformer::class,
+            ],
+        )
+        ->toOpenAPI()
+        ->build();
+
+    $schemas = $document['components']['schemas'];
+
+    expect($schemas)->toHaveKey('Post')
+        ->and($schemas['Post']['properties']['author']['properties'])->toHaveKey('resource')
+        ->and($schemas['Post']['properties']['author']['properties'])->not->toHaveKey('data')
+        ->and($schemas['Post']['properties']['author']['properties']['resource']['$ref'])->toBe('#/components/schemas/User')
+        ->and($schemas['Post']['properties']['tags']['properties']['resource']['type'])->toBe('array')
+        ->and($schemas['Post']['properties']['tags']['properties']['resource']['items']['$ref'])->toBe('#/components/schemas/Tag');
 });
 
 test('expanded transformer schemas are registered as reusable components', function () {

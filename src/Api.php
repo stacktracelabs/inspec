@@ -15,6 +15,7 @@ use StackTrace\Inspec\Operations\Broadcasting\AuthenticateWebsocketUserOperation
 use StackTrace\Inspec\Operations\Broadcasting\AuthorizeWebsocketChannelOperation;
 use StackTrace\Inspec\Paginators\CursorPaginator;
 use StackTrace\Inspec\Paginators\LengthAwarePaginator;
+use StackTrace\Inspec\RelationSerializers\WrappedRelationSerializer;
 use StackTrace\Inspec\Responses\StandardSuccessResponse;
 use StackTrace\Inspec\Responses\TooManyRequestsResponse;
 use StackTrace\Inspec\Responses\ValidationErrorResponse;
@@ -67,6 +68,8 @@ class Api
 
     protected SuccessResponse $successResponse;
 
+    protected RelationSerializer $relationSerializer;
+
     /**
      * @var array<int, Response|null>
      */
@@ -79,6 +82,7 @@ class Api
         $this->pagination = new LengthAwarePaginator();
         $this->cursorPagination = new CursorPaginator();
         $this->successResponse = new StandardSuccessResponse();
+        $this->relationSerializer = new WrappedRelationSerializer();
         $this->errorResponses = [
             422 => new ValidationErrorResponse(),
             429 => new TooManyRequestsResponse(),
@@ -189,6 +193,13 @@ class Api
     public function withSuccessResponse(SuccessResponse $response): static
     {
         $this->successResponse = $response;
+
+        return $this;
+    }
+
+    public function withRelationSerializer(RelationSerializer $serializer): static
+    {
+        $this->relationSerializer = $serializer;
 
         return $this;
     }
@@ -609,6 +620,7 @@ class Api
         $document->withPagination($this->pagination);
         $document->withCursorPagination($this->cursorPagination);
         $document->withSuccessResponse($this->successResponse);
+        $document->withRelationSerializer($this->relationSerializer);
 
         foreach ($this->errorResponses as $code => $response) {
             if ($response instanceof Response) {
