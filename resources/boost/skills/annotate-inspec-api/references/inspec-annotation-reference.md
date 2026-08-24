@@ -38,6 +38,8 @@ Available arguments:
   Path parameters using the property DSL.
 - `query: array`
   Query parameters using the property DSL.
+- `headers: array`
+  Request header parameters using the property DSL.
 - `request: ?array`
   Request body object definition.
 - `response: ?array`
@@ -127,6 +129,20 @@ query: [
 ],
 ```
 
+### Request headers
+
+- `!` controls whether the generated header parameter is marked `required`.
+- `?` does not control header requiredness.
+- `|enum:...` emits an enum on the header parameter schema.
+- The generated header name preserves the spelling and casing before the DSL marker/type suffix.
+
+```php
+headers: [
+    'X-Account-Id!:string' => 'Required account identifier',
+    'X-Client:string|enum:web,mobile' => 'Optional client type',
+],
+```
+
 ## Common patterns
 
 ### Manual routes with `Operation`
@@ -139,6 +155,9 @@ $api->post(
     '/webhooks',
     operation: (new Operation(tags: 'Webhooks'))
         ->summary('Receive webhook deliveries')
+        ->headers([
+            'X-Webhook-Signature!:string' => 'Webhook signature',
+        ])
         ->request([
             'event:string' => 'Webhook event name',
         ])
@@ -405,7 +424,8 @@ Rules:
 ## Generated behavior and caveats
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` to opt out for a specific spec.
 - With Sanctum enabled, routes with `auth:sanctum` middleware automatically receive `security: [{ bearerAuth: [] }]`.
-- The generator registers the `bearerAuth` security scheme only when Sanctum is enabled and at least one included route actually uses it.
+- Use `Api::withSanctumGuards('mobile')`, or an array such as `['sanctum', 'mobile']`, when Sanctum-backed routes use custom Laravel guard middleware such as `auth:mobile`. The default guard remains `sanctum`.
+- The generator registers the `bearerAuth` security scheme only when Sanctum is enabled and at least one included route matches a configured guard.
 - With broadcasting enabled, the registered Pusher-related broadcasting auth routes are auto-documented when present.
 - `withBroadcasting()` may accept a callback that customizes each discovered broadcasting `Operation` or returns `null` to skip it.
 - If a request body exists, Inspec infers a `422` validation response unless route-level or API-level configuration disables or replaces it.

@@ -26,6 +26,7 @@ readonly class Route
      * @param array $additionalResponses Additional response codes. Values may be null, strings, or Response definitions.
      * @param bool $deprecated Marks the endpoint as deprecated.
      * @param bool $multipart Forces `multipart/form-data` even without `file` fields.
+     * @param array $headers Request header specification using the Property DSL.
      */
     public function __construct(
         array|string             $tags = [],
@@ -41,6 +42,7 @@ readonly class Route
         public array             $additionalResponses = [],
         public bool              $deprecated = false,
         public bool              $multipart = false,
+        public array             $headers = [],
     ) {
         $this->tags = Arr::wrap($tags);
     }

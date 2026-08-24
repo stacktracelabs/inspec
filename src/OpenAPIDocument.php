@@ -39,6 +39,8 @@ class OpenAPIDocument
 
     protected bool $sanctum = true;
 
+    protected array $sanctumGuards = ['sanctum'];
+
     protected bool $usesSanctumSecurity = false;
 
     protected LengthAwarePaginator $pagination;
@@ -103,6 +105,20 @@ class OpenAPIDocument
     public function withSanctum(): static
     {
         $this->sanctum = true;
+
+        return $this;
+    }
+
+    public function withSanctumGuards(array|string $guards): static
+    {
+        $this->sanctum = true;
+        $this->sanctumGuards = collect(Arr::wrap($guards))
+            ->filter(fn (mixed $guard) => is_string($guard) && trim($guard) !== '')
+            ->map(fn (string $guard) => Str::startsWith(trim($guard), 'auth:') ? Str::after(trim($guard), 'auth:') : trim($guard))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         return $this;
     }
@@ -767,9 +783,16 @@ class OpenAPIDocument
             ];
         }
 
+        if (! empty($operation->headers)) {
+            $parameters = [
+                ...$parameters,
+                ...$this->buildHeaderParameters($operation->headers),
+            ];
+        }
+
         // Security
         $middleware = collect($route->gatherMiddleware());
-        if ($this->sanctum && $middleware->contains('auth:sanctum')) {
+        if ($this->sanctum && $this->usesSanctumMiddleware($middleware)) {
             $path['security'] = [
                 [
                     'bearerAuth' => []
@@ -934,6 +957,21 @@ class OpenAPIDocument
         });
     }
 
+    protected function usesSanctumMiddleware(Collection $middleware): bool
+    {
+        return $middleware->contains(function (mixed $definition) {
+            if (! is_string($definition) || ! Str::startsWith($definition, 'auth:')) {
+                return false;
+            }
+
+            $guards = collect(explode(',', Str::after($definition, 'auth:')))
+                ->map(fn (string $guard) => trim($guard))
+                ->filter();
+
+            return $guards->contains(fn (string $guard) => in_array($guard, $this->sanctumGuards, true));
+        });
+    }
+
     protected function buildPathParameters(array $definition): array
     {
         $parameters = [];
@@ -977,6 +1015,33 @@ class OpenAPIDocument
             }
 
             $parameters[] = $queryProp;
+        }
+
+        return $parameters;
+    }
+
+    protected function buildHeaderParameters(array $definition): array
+    {
+        $parameters = [];
+
+        foreach ($definition as $name => $headerDescription) {
+            $prop = Property::compile($name);
+
+            $header = [
+                'in' => 'header',
+                'name' => $prop->name,
+                'schema' => [
+                    'type' => $prop->type,
+                ],
+                'description' => $headerDescription,
+                'required' => $prop->nonNullable,
+            ];
+
+            if ($prop->isEnum()) {
+                $header['schema']['enum'] = $prop->enumCases();
+            }
+
+            $parameters[] = $header;
         }
 
         return $parameters;

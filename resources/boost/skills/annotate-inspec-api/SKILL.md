@@ -14,6 +14,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 3. Model the endpoint with the smallest accurate shape:
    - `route` for path parameters
    - `query` for query parameters
+   - `headers` for request headers
    - `request` for request bodies
    - `response` for standard success bodies
    - `paginatedResponse` or `cursorPaginatedResponse` for transformer-backed collections
@@ -37,6 +38,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
   - In `request`, `response`, and paginator `meta` objects, `?` means optional and `!` means non-nullable.
   - In `route` parameters, `?` controls requiredness. Path parameters are usually not optional.
   - In `query` parameters, `!` controls requiredness.
+  - In `headers` parameters, `!` controls requiredness. Preserve the actual header spelling and casing.
   - In transformer `#[Schema(...)]` objects, `?` makes the field nullable; Inspec does not currently emit a `required` array for schema objects.
 - Use `array,<itemType>` for primitive arrays, or use `'data:array' => UserTransformer::class` for arrays of transformer-backed objects.
 - Use `|enum:a,b,c` or `|enum:App\\Enums\\BackedEnum`.
@@ -58,7 +60,7 @@ Document endpoints with Inspec attributes, not hand-written YAML. Work from the 
 
 ## Current Behavior To Respect
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when the generated spec should opt out.
-- With Sanctum enabled, routes using `auth:sanctum` automatically receive `bearerAuth`; do not model that in the attribute.
+- With Sanctum enabled, routes using `auth:sanctum` automatically receive `bearerAuth`; do not model that in the attribute. If the app uses a custom Sanctum-backed guard such as `auth:mobile`, configure the documentation with `Api::withSanctumGuards('mobile')` (or an array of guard names).
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
 - `withBroadcasting(fn (Operation $operation, Route $route) => ...)` can customize those auto-documented broadcasting operations or return `null` to skip one.
 - A request body automatically adds a `422` validation response unless `additionalResponses[422]` or API-level error-response configuration overrides it.

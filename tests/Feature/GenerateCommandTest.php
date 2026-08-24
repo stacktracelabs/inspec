@@ -52,7 +52,28 @@ test('it writes the spec for a documentation class that discovers controller rou
         ],
     ]);
 
-    expect($document['paths']['/spec-test']['get']['summary'])->toBe('Generate spec fixture');
+    expect($document['paths']['/spec-test']['get']['summary'])->toBe('Generate spec fixture')
+        ->and($document['paths']['/spec-test']['get']['parameters'])->toBe([
+            [
+                'in' => 'header',
+                'name' => 'X-Account-Id',
+                'schema' => [
+                    'type' => 'string',
+                ],
+                'description' => 'Account identifier',
+                'required' => true,
+            ],
+            [
+                'in' => 'header',
+                'name' => 'X-Client',
+                'schema' => [
+                    'type' => 'string',
+                    'enum' => ['ios', 'android'],
+                ],
+                'description' => 'Client platform',
+                'required' => false,
+            ],
+        ]);
 });
 
 test('it can generate only the selected api name', function () {

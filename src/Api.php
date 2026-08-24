@@ -56,6 +56,8 @@ class Api
 
     protected bool $sanctum = true;
 
+    protected array $sanctumGuards = ['sanctum'];
+
     protected bool $broadcasting = true;
 
     protected ?Closure $broadcastingCallback = null;
@@ -247,6 +249,14 @@ class Api
         return $this;
     }
 
+    public function withSanctumGuards(array|string $guards): static
+    {
+        $this->sanctum = true;
+        $this->sanctumGuards = $this->normalizeSanctumGuards($guards);
+
+        return $this;
+    }
+
     public function withoutSanctum(): static
     {
         $this->sanctum = false;
@@ -343,6 +353,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         $method = Str::upper(trim($method));
         $uri = $this->normalizeLookupUri($uri);
@@ -361,6 +372,7 @@ class Api
                 description: $description,
                 route: $route,
                 query: $query,
+                headers: $headers,
                 request: $request,
                 response: $response,
                 paginatedResponse: $paginatedResponse,
@@ -392,6 +404,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         return $this->method(
             method: 'GET',
@@ -401,6 +414,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -429,6 +443,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         return $this->method(
             method: 'POST',
@@ -438,6 +453,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -466,6 +482,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         return $this->method(
             method: 'PUT',
@@ -475,6 +492,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -503,6 +521,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         return $this->method(
             method: 'PATCH',
@@ -512,6 +531,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -540,6 +560,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         return $this->method(
             method: 'DELETE',
@@ -549,6 +570,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -577,6 +599,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): static {
         $name = trim($name);
 
@@ -593,6 +616,7 @@ class Api
                 description: $description,
                 route: $route,
                 query: $query,
+                headers: $headers,
                 request: $request,
                 response: $response,
                 paginatedResponse: $paginatedResponse,
@@ -630,7 +654,9 @@ class Api
             }
         }
 
-        if (! $this->sanctum) {
+        if ($this->sanctum) {
+            $document->withSanctumGuards($this->sanctumGuards);
+        } else {
             $document->withoutSanctum();
         }
 
@@ -975,6 +1001,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): Operation {
         $this->assertOperationArgumentsAreExclusive(
             tags: $tags,
@@ -982,6 +1009,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -1003,6 +1031,7 @@ class Api
             description: $description,
             route: $route,
             query: $query,
+            headers: $headers,
             request: $request,
             response: $response,
             paginatedResponse: $paginatedResponse,
@@ -1029,6 +1058,7 @@ class Api
         bool $deprecated = false,
         bool $multipart = false,
         ?Operation $operation = null,
+        array $headers = [],
     ): void {
         if (! $operation) {
             return;
@@ -1040,6 +1070,7 @@ class Api
             || $description !== ''
             || $route !== []
             || $query !== []
+            || $headers !== []
             || $request !== null
             || $response !== null
             || $paginatedResponse !== null
@@ -1058,5 +1089,16 @@ class Api
         if (! in_array($code, [422, 429], true)) {
             throw GeneratorException::withMessage("The error response [{$code}] is not supported. Supported error responses are [422, 429].");
         }
+    }
+
+    protected function normalizeSanctumGuards(array|string $guards): array
+    {
+        return collect(Arr::wrap($guards))
+            ->filter(fn (mixed $guard) => is_string($guard) && trim($guard) !== '')
+            ->map(fn (string $guard) => Str::startsWith(trim($guard), 'auth:') ? Str::after(trim($guard), 'auth:') : trim($guard))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }

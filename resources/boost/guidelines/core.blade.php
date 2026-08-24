@@ -38,6 +38,9 @@ class ShowUserController
         query: [
             'include?:string' => 'Comma-separated includes',
         ],
+        headers: [
+            'X-Account-Id!:string' => 'Required account identifier',
+        ],
         response: [
             'data' => UserTransformer::class,
         ],
@@ -84,7 +87,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 ### Property DSL
 
 - Use `name[?][!]:type[,typeArg...][|modifier:arg[,arg...]]`.
-- Use `route` for path parameters, `query` for query parameters, `request` for request bodies, and `response` for standard success payloads.
+- Use `route` for path parameters, `query` for query parameters, `headers` for request headers, `request` for request bodies, and `response` for standard success payloads.
 - Common examples:
   - `'email:string' => 'Email address'`
   - `'email!:string' => 'Present and non-nullable'`
@@ -92,7 +95,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
   - `'status:string|enum:active,disabled' => 'Allowed values'`
   - `'tags:array,string' => 'List of tags'`
   - `'avatar:file' => 'Uploaded file'`
-- In `query`, `!` controls requiredness. In `route`, `?` controls requiredness. In request and response objects, `?` and `!` are Inspec field markers for optionality and nullability.
+- In `query` and `headers`, `!` controls parameter requiredness. In `route`, `?` controls requiredness. In request and response objects, `?` and `!` are Inspec field markers for optionality and nullability.
 
 ### Best Practices
 
@@ -108,7 +111,7 @@ If a documentation uses `->prefix('api')`, keep using canonical generated paths 
 - Use `multipart: true` or `file` fields for multipart uploads.
 - Do not rely on `Route::$description` being emitted yet; prefer `summary`.
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` when a spec should opt out.
-- With Sanctum enabled, only included routes that actually use `auth:sanctum` receive bearer auth security, and the `bearerAuth` scheme is registered only when needed.
+- With Sanctum enabled, `auth:sanctum` routes receive bearer auth security by default. Use `withSanctumGuards('mobile')` or an array of guard names when Sanctum-backed routes use custom middleware such as `auth:mobile`; the `bearerAuth` scheme is registered only when an included route matches.
 - With broadcasting enabled, Inspec auto-documents the registered Pusher-related broadcasting auth routes when they exist.
 - `withBroadcasting()` may receive a callback that customizes each discovered broadcasting `Operation` or returns `null` to skip it.
 - Use `Api::prefix(...)` only when you want to strip a real Laravel route prefix from generated operation paths. Server URLs stay exactly as authored.
