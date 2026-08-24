@@ -153,6 +153,9 @@ $api->post(
     '/webhooks',
     operation: (new Operation(tags: 'Webhooks'))
         ->summary('Receive webhook deliveries')
+        ->headers([
+            'X-Webhook-Signature!:string' => 'Webhook signature',
+        ])
         ->request([
             'event:string' => 'Webhook event name',
         ])
@@ -207,7 +210,7 @@ class ShowStatusController
 
 This produces a single operation tagged with `Status`, a `summary`, and a `200` JSON response.
 
-### Path and query parameters
+### Path, query, and request header parameters
 
 ```php
 <?php
@@ -230,6 +233,10 @@ class ListAccountUsersController
             'status!:string|enum:active,disabled' => 'Required status filter',
             'include?:string' => 'Comma-separated includes',
         ],
+        headers: [
+            'X-Account-Id!:string' => 'Required account identifier',
+            'X-Client:string|enum:web,mobile' => 'Optional client type',
+        ],
         response: [
             'data:array' => UserTransformer::class,
         ],
@@ -245,7 +252,9 @@ Parameter behavior comes from the property DSL:
 
 - Path parameters use `?` to determine whether the generated parameter is marked as required.
 - Query parameters use `!` to determine whether the parameter is required.
-- Query parameter enums are emitted when you add an `|enum:...` modifier.
+- Request headers also use `!` to determine whether the parameter is required.
+- Query parameter and request header enums are emitted when you add an `|enum:...` modifier.
+- Header names are emitted exactly as authored, without the DSL marker and type suffix.
 
 ### Request bodies and field markers
 
@@ -663,14 +672,15 @@ For schema objects created from `#[Schema(...)]`:
 
 Current caveat: object schemas do not currently emit an OpenAPI `required` array, so `?` and `!` are best understood as Inspec's internal field markers rather than a complete requiredness implementation.
 
-### Path and query parameter rules
+### Path, query, and request header parameter rules
 
-Route and query parameters reuse the same DSL parser, but they are interpreted differently:
+Route, query, and request header parameters reuse the same DSL parser, but they are interpreted differently:
 
 - Path parameters use `?` to decide whether the generated parameter is marked `required`.
 - Query parameters use `!` to decide whether the generated parameter is marked `required`.
-- Query parameter enums are emitted from `|enum:...`.
-- Parameter descriptions come from the array values you provide in `route` and `query`.
+- Request headers use `!` to decide whether the generated parameter is marked `required`.
+- Query parameter and request header enums are emitted from `|enum:...`.
+- Parameter descriptions come from the array values you provide in `route`, `query`, and `headers`.
 
 Examples:
 
@@ -679,6 +689,7 @@ Examples:
     'account:string' => 'Required path parameter',
     'include?:string' => 'Optional query parameter',
     'status!:string|enum:active,disabled' => 'Required query parameter',
+    'X-Account-Id!:string' => 'Required request header',
 ]
 ```
 
@@ -747,7 +758,8 @@ Some documentation is inferred from the resolved Laravel route rather than the a
 
 - `Api` enables Sanctum and broadcasting integrations by default. Use `withoutSanctum()` or `withoutBroadcasting()` to opt out for a specific documentation class, and `withSanctum()` / `withBroadcasting()` to re-enable them explicitly.
 - When Sanctum is enabled, documented routes with the `auth:sanctum` middleware receive `security: [{ bearerAuth: [] }]`.
-- The `bearerAuth` security scheme is registered only when Sanctum is enabled and at least one included route actually uses `auth:sanctum`.
+- APIs whose Sanctum-backed Laravel guard uses another name can call `withSanctumGuards('mobile')` or pass an array such as `withSanctumGuards(['sanctum', 'mobile'])`. The default remains `sanctum`.
+- The `bearerAuth` security scheme is registered only when Sanctum is enabled and at least one included route uses an `auth:<guard>` middleware matching the configured guard names.
 - When broadcasting is enabled, `Api` automatically documents the registered Laravel broadcasting routes needed for Pusher connections:
   - `/broadcasting/auth`
   - `/broadcasting/user-auth`
@@ -759,6 +771,7 @@ Example:
 ```php
 $api
     ->prefix('api')
+    ->withSanctumGuards(['sanctum', 'mobile'])
     ->withBroadcasting(function (\StackTrace\Inspec\Operation $operation, \Illuminate\Routing\Route $route) {
         if ($route->uri() === 'api/broadcasting/user-auth') {
             return null;

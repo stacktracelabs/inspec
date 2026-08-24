@@ -9,6 +9,10 @@ class GenerateSpecController
     #[Route(
         tags: 'Utilities',
         summary: 'Generate spec fixture',
+        headers: [
+            'X-Account-Id!:string' => 'Account identifier',
+            'X-Client:string|enum:ios,android' => 'Client platform',
+        ],
         response: [
             'status:string' => 'Fixture status value',
         ],

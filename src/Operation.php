@@ -18,6 +18,8 @@ class Operation
 
     public array $query;
 
+    public array $headers;
+
     public ?array $request;
 
     public array|string|null $response;
@@ -48,12 +50,14 @@ class Operation
         array $additionalResponses = [],
         bool $deprecated = false,
         bool $multipart = false,
+        array $headers = [],
     ) {
         $this->tags = Arr::wrap($tags);
         $this->summary = trim($summary);
         $this->description = trim($description);
         $this->route = $route;
         $this->query = $query;
+        $this->headers = $headers;
         $this->request = $request;
         $this->response = $response;
         $this->paginatedResponse = $paginatedResponse;
@@ -72,6 +76,7 @@ class Operation
             description: $route->description,
             route: $route->route,
             query: $route->query,
+            headers: $route->headers,
             request: $route->request,
             response: $route->response,
             paginatedResponse: $route->paginatedResponse,
@@ -114,6 +119,13 @@ class Operation
     public function query(array $query): static
     {
         $this->query = $query;
+
+        return $this;
+    }
+
+    public function headers(array $headers): static
+    {
+        $this->headers = $headers;
 
         return $this;
     }
