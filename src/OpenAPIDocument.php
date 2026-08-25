@@ -369,6 +369,38 @@ class OpenAPIDocument
         ];
     }
 
+    protected function isNullableProperty(Property $property, bool $schemaObjectFlag): bool
+    {
+        return $schemaObjectFlag
+            ? $property->optional
+            : ! $property->nonNullable;
+    }
+
+    protected function buildReferencedProperty(Property $property, string $ref, bool $schemaObjectFlag): array
+    {
+        $reference = ['$ref' => $ref];
+        $nullable = $this->isNullableProperty($property, $schemaObjectFlag);
+
+        if ($property->isArray()) {
+            $schema = $this->asArray($reference);
+
+            if ($nullable) {
+                $schema['nullable'] = true;
+            }
+
+            return $schema;
+        }
+
+        if ($nullable) {
+            return [
+                'allOf' => [$reference],
+                'nullable' => true,
+            ];
+        }
+
+        return $reference;
+    }
+
     protected function buildObject(array $def, bool $schemaObjectFlag = false, bool &$fileDetected = false): array
     {
         $object = [
@@ -399,16 +431,11 @@ class OpenAPIDocument
                 $oneTimeSchemaObject = $this->buildObject($description->attributes, $schemaObjectFlag);
                 $this->schema($description->name, $oneTimeSchemaObject);
 
-                $ref = [
-                    '$ref' => "#/components/schemas/{$description->name}"
-                ];
-
-                // If the property is array, the value is array of schemes, otherwise it is just a single scheme.
-                if ($property->isArray()) {
-                    $properties[$property->name] = $this->asArray($ref);
-                } else {
-                    $properties[$property->name] = $ref;
-                }
+                $properties[$property->name] = $this->buildReferencedProperty(
+                    $property,
+                    "#/components/schemas/{$description->name}",
+                    $schemaObjectFlag,
+                );
 
                 continue;
             }
@@ -424,36 +451,33 @@ class OpenAPIDocument
 
                 $this->schema($schemaName, $schemaObject);
 
-                $ref = [
-                    '$ref' => "#/components/schemas/{$schemaName}"
-                ];
-
-                // If the property is array, the value is array of schemes, otherwise it is just a single scheme.
-                if ($property->isArray()) {
-                    $properties[$property->name] = $this->asArray($ref);
-                } else {
-                    $properties[$property->name] = $ref;
-                }
+                $properties[$property->name] = $this->buildReferencedProperty(
+                    $property,
+                    "#/components/schemas/{$schemaName}",
+                    $schemaObjectFlag,
+                );
 
                 continue;
             }
 
             // The type is transformer.
             if (class_exists($property->type) && $this->isTransformer($property->type)) {
-                $properties[$property->name] = [
-                    '$ref' => $this->resolveSchemaPathFromTransformer($property->type),
-                    // 'description' => $description,
-                ];
+                $properties[$property->name] = $this->buildReferencedProperty(
+                    $property,
+                    $this->resolveSchemaPathFromTransformer($property->type),
+                    $schemaObjectFlag,
+                );
 
                 continue;
             }
 
             // The type is schema object
             if ($this->isSchemaObject($property->type)) {
-                $properties[$property->name] = [
-                    '$ref' => $this->resolveSchemaPathFromSchemaObject($property->type),
-                    // 'description' => $description,
-                ];
+                $properties[$property->name] = $this->buildReferencedProperty(
+                    $property,
+                    $this->resolveSchemaPathFromSchemaObject($property->type),
+                    $schemaObjectFlag,
+                );
 
                 continue;
             }
@@ -518,16 +542,12 @@ class OpenAPIDocument
                 }
             }
 
-            $nullable = false;
+            $nullable = $this->isNullableProperty($property, $schemaObjectFlag);
 
             // In schema objects, the ! is not supported and optional fields are not supported either.
             // email => Always present, non-nullable field
             // email? => Always present, nullable field.
-            if ($schemaObjectFlag) {
-                if ($property->optional) {
-                    $nullable = true;
-                }
-            } else {
+            if (! $schemaObjectFlag) {
                 // In request objects:
                 // email => must be present in request, nullable
                 // email! => must be present in request, non-nullable
@@ -537,11 +557,6 @@ class OpenAPIDocument
                 // By default, OpenAPI properties are optional.
                 if (! $property->optional) {
                     $pro['required'] = true;
-                }
-
-                // If the value is nullable.
-                if (! $property->nonNullable) {
-                    $nullable = true;
                 }
             }
 

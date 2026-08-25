@@ -172,7 +172,7 @@ test('it allows using a fractal transformer as a property type in the dsl', func
             tags: 'Webhooks',
             summary: 'Receive webhooks',
             response: [
-                'user:' . UserTransformer::class => 'Owning user',
+                'user!:'.UserTransformer::class => 'Owning user',
             ],
         )
         ->toOpenAPI()
